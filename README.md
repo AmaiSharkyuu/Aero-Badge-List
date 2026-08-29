@@ -66,6 +66,7 @@ Frutiger Aero Badge List is a fork of [Advanced Badge List](https://github.com/m
 ### Frutiger Aero fork
 
 - **AmaiSharkyuu**
+  - [Roblox Profile](https://www.roblox.com/users/1957141708/profile)
 
 ## 🔑 Cloud Keys 🔑
 
