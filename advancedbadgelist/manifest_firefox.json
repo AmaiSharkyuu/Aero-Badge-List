@@ -1,0 +1,61 @@
+{
+    "manifest_version": 3,
+    "name": "Advanced Badge List",
+    "version": "2.0.1",
+    "description": "Adds an advanced version of the Roblox badge list. Features filters, the ability to view other users, badge refreshing, and more.",
+    "permissions": [
+        "storage"
+    ],
+    "host_permissions": [
+        "https://www.roblox.com/games/*",
+        "https://www.roblox.com/my/account*",
+        "https://thumbnails.roblox.com/*",
+        "https://users.roblox.com/*",
+        "https://games.roblox.com/*",
+        "https://badges.roblox.com/*",
+        "https://apis.roblox.com/*"
+    ],
+    "content_scripts": [
+        {
+            "matches": ["https://www.roblox.com/games/*"],
+            "js": ["scripts/gamePage.js"],
+            "run_at": "document_end"
+        },
+        {
+            "matches": ["https://www.roblox.com/my/account*"],
+            "js": ["scripts/settings.js"],
+            "run_at":"document_idle"
+        }
+    ],
+    "background": {
+		"scripts": ["scripts/background.js"]
+	},
+    "action": {
+        "default_icon": {
+            "16": "pngs/16.png",
+            "48": "pngs/48.png",
+            "128": "pngs/128.png"
+        }
+    },
+    "icons": {
+        "16": "pngs/16.png",
+        "48": "pngs/48.png",
+        "128": "pngs/128.png"
+    },
+    "web_accessible_resources": [
+        {
+            "resources": ["NVL.json", "pngs/refresh.svg", "pngs/edit.svg", "pngs/add.svg", "pngs/cross.svg"],
+            "matches": ["https://www.roblox.com/*"]
+        }
+    ],
+    "browser_specific_settings": {
+        "gecko": {
+            "id": "{8951b3ed-9f96-4931-8915-7d926aae5b59}",
+            "data_collection_permissions": {
+                "required": [
+                    "none"
+                ]
+            }
+        }
+    }
+}

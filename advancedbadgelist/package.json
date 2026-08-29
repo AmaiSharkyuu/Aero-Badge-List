@@ -1,0 +1,20 @@
+{
+  "name": "chrome",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+	"watch": "esbuild src/*.jsx --bundle --outdir=scripts --jsx-factory=createElement --watch",
+	"build": "esbuild src/*.jsx --bundle --outdir=scripts --jsx-factory=createElement"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "esbuild": "^0.28.1"
+  },
+  "allowScripts": {
+    "esbuild@0.28.1": true
+  }
+}
