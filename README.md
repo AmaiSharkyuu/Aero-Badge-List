@@ -101,15 +101,4 @@ A: Chrome, Opera GX (PC), Kiwi Browser (Mobile), and Firefox (PC), as mentioned 
 #### Q: How do I use the plugin?
 A: Simply navigate to a game with badges — the badge list appears at the bottom of the page. Use the filter and sort controls to narrow it down, and "Load" to fetch more badges.
 
-### Cursors
-
-#### Q: What are the files in the `cursors` folder?
-A: Each file holds pre-generated Roblox API pagination tokens (`badges.roblox.com` cursors) for one specific game with a huge badge count. They let you skip straight to a deep page of that game's badge list instead of paginating through everything from page 1.
-
-#### Q: How do I use them?
-A: **Not currently wired up in this fork.** The v2.0.1 rewrite this fork is based on doesn't include an "import cursors" button yet — that was a feature of the older (pre-2.0) codebase. The files are kept here for reference and for anyone who wants to reimplement the feature; contributions welcome.
-
-#### Q: How do I contribute cursors to the folder?
-A: For contributions to the cursor collection, please contact Meowbee (listed in the Credits) or open a pull request.
-
 For any further questions not covered here, feel free to open an issue on this repository.
