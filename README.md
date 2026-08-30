@@ -68,6 +68,7 @@ Aero Badge List is a fork of [Advanced Badge List](https://github.com/meowbee-gi
 
 - **AmaiSharkyuu**
   - [Roblox Profile](https://www.roblox.com/users/1957141708/profile)
+  - [Discord](https://discord.com/users/816654196047740979)
 
 ## 🔑 Cloud Keys 🔑
 
