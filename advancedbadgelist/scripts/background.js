@@ -3,6 +3,7 @@ const DEFAULT_SETTINGS = {
     americanDates: false,
     ablCloudKeys: [""],
     ablShutUpKeyWarning: false,
+    ablTheme: { preset: "aero", hue: 200, sat: 95 },
 };
 
 chrome.action.onClicked.addListener(() => {

@@ -75,6 +75,54 @@
     .abl-remove-key:hover {
         filter: brightness(1.12);
     }
+
+    .abl-theme-btn {
+        padding: 8px 14px;
+        border-radius: 0 !important;
+        background: linear-gradient(to bottom, rgba(255, 255, 255, 0.5) 0%, rgba(255, 255, 255, 0.1) 14%, rgba(255, 255, 255, 0) 50%), linear-gradient(to bottom, #3fc6ff 0%, #0d6fa8 55%, #073757 100%);
+        border: 1px solid rgba(210, 245, 255, 0.4);
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.4), 0 1px 3px rgba(0, 0, 0, 0.4);
+        color: #cfe9f5;
+        text-shadow: 0 1px 1px rgba(0, 20, 30, 0.5);
+        cursor: pointer;
+        opacity: 0.6;
+        font-size: 13px;
+        font-weight: 600;
+    }
+
+    .abl-theme-btn.active {
+        opacity: 1;
+        border: 1px solid rgba(235, 235, 235, 0.9);
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.85), 0 0 8px rgba(120, 200, 255, 0.5);
+    }
+
+    .abl-theme-preview {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 14px;
+        margin-top: 16px;
+        background: #0b0b0e;
+        border: 1px solid rgba(150, 215, 255, 0.3);
+    }
+
+    .abl-theme-preview-btn {
+        padding: 6px 14px;
+        border-radius: 0;
+        background: linear-gradient(to bottom, hsl(var(--p-hue) var(--p-sat) 62%) 0%, hsl(var(--p-hue) calc(var(--p-sat) * 0.9) 36%) 55%, hsl(calc(var(--p-hue) + 4) calc(var(--p-sat) * 0.9) 18%) 100%);
+        border: 1px solid hsl(var(--p-hue) var(--p-sat) 89% / 0.85);
+        color: #fff;
+        font-size: 12px;
+        font-weight: 600;
+        text-shadow: 0 1px 1px rgba(0, 20, 30, 0.6);
+        cursor: default;
+    }
+
+    .abl-theme-preview-chip {
+        width: 26px;
+        height: 26px;
+        border: 3px solid var(--p-rarity, #ffd700);
+    }
     `;
     document.head.appendChild(style);
     const menu = document.querySelector("ul.menu-vertical[role='tablist']");
@@ -89,6 +137,10 @@
         "abl-cloud-keys": {
             href: "?abl=cloud-keys",
             render: () => renderAblTab("abl-cloud-keys")
+        },
+        "abl-theme": {
+            href: "?abl=theme",
+            render: () => renderAblTab("abl-theme")
         },
         "abl-back": {
             href: "https://www.roblox.com/my/account#!/info",
@@ -131,6 +183,46 @@
         return new Promise(resolve => {
             chrome.storage.local.set({ [key]: value }, resolve);
         });
+    }
+
+    function hexToHueSat(hex) {
+        const r = parseInt(hex.slice(1, 3), 16) / 255;
+        const g = parseInt(hex.slice(3, 5), 16) / 255;
+        const b = parseInt(hex.slice(5, 7), 16) / 255;
+
+        const max = Math.max(r, g, b);
+        const min = Math.min(r, g, b);
+        const l = (max + min) / 2;
+
+        let h = 0;
+        let s = 0;
+
+        if (max !== min) {
+            const d = max - min;
+            s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+
+            switch (max) {
+                case r: h = (g - b) / d + (g < b ? 6 : 0); break;
+                case g: h = (b - r) / d + 2; break;
+                case b: h = (r - g) / d + 4; break;
+            }
+
+            h *= 60;
+        }
+
+        return { hue: Math.round(h), sat: Math.round(s * 100) };
+    }
+
+    function hslToHex(h, s, l) {
+        s /= 100;
+        l /= 100;
+
+        const k = n => (n + h / 30) % 12;
+        const a = s * Math.min(l, 1 - l);
+        const f = n => l - a * Math.max(-1, Math.min(k(n) - 3, Math.min(9 - k(n), 1)));
+        const toHex = x => Math.round(255 * x).toString(16).padStart(2, "0");
+
+        return `#${toHex(f(0))}${toHex(f(8))}${toHex(f(4))}`;
     }
 
     function makeOption(id, text, href) {
@@ -347,6 +439,81 @@
             tabContent.appendChild(cloudkeySettingsTab);
         }
 
+        if (id === "abl-theme") {
+            tabContent.replaceChildren(
+                <div className="section">
+                    <h3>Theme</h3>
+                    <p className="font-caption-body" style={{ opacity: "0.7", marginBottom: "12px" }}>Changes apply next time you load a game page.</p>
+                    <div id="abl-theme-presets" style={{ display: "flex", gap: "8px" }}>
+                        <button className="abl-theme-btn" type="button" data-preset="aero">Aero</button>
+                        <button className="abl-theme-btn" type="button" data-preset="mono">Monochrome</button>
+                        <button className="abl-theme-btn" type="button" data-preset="custom">Custom</button>
+                    </div>
+                    <div id="abl-theme-custom-row" style={{ display: "none", alignItems: "center", gap: "10px", marginTop: "12px" }}>
+                        <span className="font-caption-header" style={{ fontSize: "14px" }}>Accent color</span>
+                        <input type="color" id="abl-theme-color" value="#3fc6ff" style={{ width: "44px", height: "32px", padding: "0", border: "none", background: "none", cursor: "pointer" }} />
+                    </div>
+                    <div className="abl-theme-preview" id="abl-theme-preview">
+                        <button className="abl-theme-preview-btn" type="button">Load</button>
+                        <div className="abl-theme-preview-chip" id="abl-theme-preview-chip"></div>
+                        <span style={{ fontSize: "12px", opacity: "0.6" }}>Preview</span>
+                    </div>
+                </div>
+            );
+
+            const presetButtons = [...document.querySelectorAll(".abl-theme-btn")];
+            const customRow = document.getElementById("abl-theme-custom-row");
+            const colorInput = document.getElementById("abl-theme-color");
+            const preview = document.getElementById("abl-theme-preview");
+            const previewChip = document.getElementById("abl-theme-preview-chip");
+
+            const PRESETS = {
+                aero: { hue: 200, sat: 95 },
+                mono: { hue: 0, sat: 0 }
+            };
+
+            function updatePreview(theme) {
+                preview.style.setProperty("--p-hue", theme.hue);
+                preview.style.setProperty("--p-sat", theme.sat + "%");
+                previewChip.style.setProperty("--p-rarity", theme.preset === "mono" ? "#ffffff" : "#ffd700");
+            }
+
+            function setActivePresetButton(preset) {
+                presetButtons.forEach(b => b.classList.toggle("active", b.dataset.preset === preset));
+                customRow.style.display = preset === "custom" ? "flex" : "none";
+            }
+
+            const savedTheme = (await getSetting("ablTheme")) || { preset: "aero", hue: 200, sat: 95 };
+
+            setActivePresetButton(savedTheme.preset);
+            updatePreview(savedTheme);
+
+            if (savedTheme.preset === "custom") {
+                colorInput.value = hslToHex(savedTheme.hue, savedTheme.sat, 55);
+            }
+
+            presetButtons.forEach(btn => {
+                btn.addEventListener("click", async () => {
+                    const preset = btn.dataset.preset;
+                    setActivePresetButton(preset);
+
+                    const theme = preset === "custom"
+                        ? { preset: "custom", ...hexToHueSat(colorInput.value) }
+                        : { preset, ...PRESETS[preset] };
+
+                    updatePreview(theme);
+                    await setSetting("ablTheme", theme);
+                });
+            });
+
+            colorInput.addEventListener("input", async () => {
+                const theme = { preset: "custom", ...hexToHueSat(colorInput.value) };
+
+                updatePreview(theme);
+                await setSetting("ablTheme", theme);
+            });
+        }
+
         if (id === "abl-general-settings") {
             tabContent.replaceChildren(
                 <div className="section">
@@ -370,9 +537,10 @@
 
         const generalSettings = makeOption("abl-general-settings", "General Settings", ABL_TABS["abl-general-settings"].href);
         const cloudKeys = makeOption("abl-cloud-keys", "Cloud Keys", ABL_TABS["abl-cloud-keys"].href);
+        const theme = makeOption("abl-theme", "Theme", ABL_TABS["abl-theme"].href);
         const returnBtn = makeOption("abl-back", "Return", ABL_TABS["abl-back"].href);
 
-        menu.append(generalSettings, cloudKeys, returnBtn);
+        menu.append(generalSettings, cloudKeys, theme, returnBtn);
 
         const key = new URLSearchParams(location.search).get("abl") || "general-settings";
         const tab = menu.querySelector(`#abl-${key}`) || generalSettings;
@@ -402,7 +570,7 @@
 
         settings.querySelector("a").addEventListener("click", (e) => {
             e.preventDefault();
-            title.textContent = "Advanced Badge List Settings";
+            title.textContent = "Frutiger Aero Badge List Settings";
             history.pushState(null, "", "?abl=general-settings");
             showAblMenu();
         });
@@ -415,7 +583,7 @@
 
     const params = new URLSearchParams(window.location.search);
     if (params.get("abl")) {
-        title.textContent = "Advanced Badge List Settings";
+        title.textContent = "Frutiger Aero Badge List Settings";
         showAblMenu();
     }
 })();

@@ -121,6 +121,19 @@
         if (await getSetting("ablEnabled") != true) {
           return;
         }
+        async function applyTheme() {
+          const theme = await getSetting("ablTheme") || { preset: "aero", hue: 200, sat: 95 };
+          const root = document.documentElement;
+          root.style.setProperty("--abl-hue", theme.hue);
+          root.style.setProperty("--abl-sat", theme.sat + "%");
+          if (theme.preset === "mono") {
+            root.style.setProperty("--abl-toggle-off", "#3a3a3a");
+            root.style.setProperty("--abl-toggle-on", "#cfcfcf");
+            root.style.setProperty("--abl-rarity-valuable", "#ffffff");
+            root.style.setProperty("--abl-rarity-legacy", "#9a9a9a");
+            root.style.setProperty("--abl-rarity-nvl", "#4a4a4a");
+          }
+        }
         const NVL_list = await fetch(chrome.runtime.getURL("NVL.json")).then(function(response) {
           return response.json();
         });
@@ -369,16 +382,30 @@
         ablStyle.innerHTML = `
     :root {
         --abl-color-surface: rgb(11, 11, 14);
-        --abl-aero-border: rgba(150, 215, 255, 0.45);
-        --abl-aero-border-bright: rgba(210, 245, 255, 0.85);
-        --abl-aero-accent: #29b6f6;
-        --abl-aero-accent-dark: #073757;
+        --abl-hue: 200;
+        --abl-sat: 95%;
+        --abl-aero-border: hsl(var(--abl-hue) var(--abl-sat) 79% / 0.45);
+        --abl-aero-border-bright: hsl(var(--abl-hue) var(--abl-sat) 89% / 0.85);
+        --abl-aero-accent-dark: hsl(calc(var(--abl-hue) + 4) calc(var(--abl-sat) * 0.9) 18%);
+        --abl-panel-tint: hsl(var(--abl-hue) var(--abl-sat) 56% / 0.14);
+        --abl-icon-tint: hsl(var(--abl-hue) var(--abl-sat) 74% / 0.08);
+        --abl-icon-border: hsl(var(--abl-hue) var(--abl-sat) 79% / 0.25);
+        --abl-ghost-hover: hsl(var(--abl-hue) var(--abl-sat) 74% / 0.12);
+        --abl-btn-top: hsl(var(--abl-hue) var(--abl-sat) 62%);
+        --abl-btn-mid: hsl(var(--abl-hue) calc(var(--abl-sat) * 0.9) 36%);
+        --abl-knob-mid: hsl(var(--abl-hue) calc(var(--abl-sat) * 0.3) 92%);
+        --abl-knob-edge: hsl(var(--abl-hue) calc(var(--abl-sat) * 0.5) 84%);
+        --abl-toggle-off: #b0362f;
+        --abl-toggle-on: #2e9e46;
+        --abl-rarity-valuable: #ffd700;
+        --abl-rarity-legacy: #0080ff;
+        --abl-rarity-nvl: #ff1100;
     }
 
     .abl-background {
         background:
             linear-gradient(to bottom, rgba(255, 255, 255, 0.14) 0%, rgba(255, 255, 255, 0.04) 10%, rgba(255, 255, 255, 0) 32%),
-            linear-gradient(to bottom, rgba(41, 182, 246, 0.14), rgba(6, 10, 16, 0) 60%),
+            linear-gradient(to bottom, var(--abl-panel-tint), rgba(6, 10, 16, 0) 60%),
             var(--abl-color-surface);
         border: 1px solid var(--abl-aero-border);
         border-top-color: var(--abl-aero-border-bright);
@@ -398,7 +425,7 @@
         padding: 5px 11px;
         background:
             linear-gradient(to bottom, rgba(255, 255, 255, 0.55) 0%, rgba(255, 255, 255, 0.12) 14%, rgba(255, 255, 255, 0) 50%),
-            linear-gradient(to bottom, #3fc6ff 0%, #0d6fa8 55%, var(--abl-aero-accent-dark) 100%);
+            linear-gradient(to bottom, var(--abl-btn-top) 0%, var(--abl-btn-mid) 55%, var(--abl-aero-accent-dark) 100%);
         border: 1px solid var(--abl-aero-border-bright);
         box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.85), 0 1px 3px rgba(0, 0, 0, 0.5);
         color: #f2fdff;
@@ -422,7 +449,7 @@
     .abl-button:active {
         background:
             linear-gradient(to bottom, rgba(0, 0, 0, 0.25) 0%, rgba(255, 255, 255, 0.08) 60%),
-            linear-gradient(to bottom, #0d6fa8 0%, #3fc6ff 100%);
+            linear-gradient(to bottom, var(--abl-btn-mid) 0%, var(--abl-btn-top) 100%);
         box-shadow: inset 0 2px 5px rgba(0, 0, 0, 0.6);
     }
 
@@ -434,13 +461,13 @@
     }
 
     .abl-ghost-button:hover {
-        background-color: rgba(120, 200, 255, 0.12);
+        background-color: var(--abl-ghost-hover);
     }
 
     .abl-icon {
         border-radius: 0;
-        background-color: rgba(120, 200, 255, 0.08);
-        border: 1px solid rgba(150, 215, 255, 0.25);
+        background-color: var(--abl-icon-tint);
+        border: 1px solid var(--abl-icon-border);
         aspect-ratio: 1;
     }
 
@@ -486,7 +513,7 @@
         height: 24px;
         margin-right: 10px;
         border-radius: 0;
-        background: linear-gradient(to bottom, rgba(255, 255, 255, 0.25) 0%, rgba(255, 255, 255, 0) 45%), #b0362f;
+        background: linear-gradient(to bottom, rgba(255, 255, 255, 0.25) 0%, rgba(255, 255, 255, 0) 45%), var(--abl-toggle-off);
         border: 1px solid rgba(0, 0, 0, 0.4);
         box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.4);
         position: relative;
@@ -495,13 +522,13 @@
     }
 
     .abl-notFilterCheck.on {
-        background: linear-gradient(to bottom, rgba(255, 255, 255, 0.3) 0%, rgba(255, 255, 255, 0) 45%), #2e9e46;
+        background: linear-gradient(to bottom, rgba(255, 255, 255, 0.3) 0%, rgba(255, 255, 255, 0) 45%), var(--abl-toggle-on);
     }
 
     .abl-notFilterCheck-knob {
         width: 20px;
         height: 20px;
-        background: linear-gradient(to bottom, #ffffff 0%, #cfe9f5 45%, #9fd0e8 55%, #ffffff 100%);
+        background: linear-gradient(to bottom, #ffffff 0%, var(--abl-knob-mid) 45%, var(--abl-knob-edge) 55%, #ffffff 100%);
         border: 1px solid rgba(255, 255, 255, 0.9);
         box-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
         border-radius: 0;
@@ -602,18 +629,18 @@
     }
 
     .abl-value-border.valuable {
-        border-color: #ffd700;
-        box-shadow: 0 0 6px rgba(255, 215, 0, 0.5);
+        border-color: var(--abl-rarity-valuable);
+        box-shadow: 0 0 6px color-mix(in srgb, var(--abl-rarity-valuable) 50%, transparent);
     }
 
     .abl-value-border.legacy {
-        border-color: #0080ff;
-        box-shadow: 0 0 6px rgba(0, 128, 255, 0.5);
+        border-color: var(--abl-rarity-legacy);
+        box-shadow: 0 0 6px color-mix(in srgb, var(--abl-rarity-legacy) 50%, transparent);
     }
 
     .abl-value-border.nvl {
-        border-color: #ff1100;
-        box-shadow: 0 0 6px rgba(255, 17, 0, 0.5);
+        border-color: var(--abl-rarity-nvl);
+        box-shadow: 0 0 6px color-mix(in srgb, var(--abl-rarity-nvl) 50%, transparent);
     }
 
     #abl-filter-options-list {
@@ -662,6 +689,7 @@
     };
     `;
         document.head.appendChild(ablStyle);
+        await applyTheme();
         function createBasicDropdown(dropdownGroup, id) {
           return /* @__PURE__ */ createElement("select", { class: "abl-background abl-pad-sm", id }, dropdownGroup.options.map((item, index) => /* @__PURE__ */ createElement("option", { key: index, value: item, class: "abl-dropdown-option" }, item)));
         }

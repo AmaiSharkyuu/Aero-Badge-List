@@ -35,6 +35,7 @@ Frutiger Aero Badge List is a fork of [Advanced Badge List](https://github.com/m
 
 - Frutiger Aero visual theme: glossy blue glass panels and buttons, zero `border-radius` anywhere.
 - Badge rarity borders: Valuable = gold, Legacy = blue, NVL = red, each with a subtle matching glow.
+- Built-in theme picker (ABL Settings → Theme): Aero (default), Monochrome, or a Custom accent color of your own.
 - Cleaned up dead/commented-out code from the base project.
 - Host permissions narrowed to only what the extension actually needs (least privilege).
 - Native Firefox manifest (`manifest_firefox.json`) with matching permissions.
