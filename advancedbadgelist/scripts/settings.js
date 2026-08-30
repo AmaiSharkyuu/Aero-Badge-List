@@ -443,7 +443,7 @@
           );
           settings.querySelector("a").addEventListener("click", (e) => {
             e.preventDefault();
-            title.textContent = "Frutiger Aero Badge List Settings";
+            title.textContent = "Aero Badge List Settings";
             history.pushState(null, "", "?abl=general-settings");
             showAblMenu();
           });
@@ -453,7 +453,7 @@
         inject();
         const params = new URLSearchParams(window.location.search);
         if (params.get("abl")) {
-          title.textContent = "Frutiger Aero Badge List Settings";
+          title.textContent = "Aero Badge List Settings";
           showAblMenu();
         }
       })();

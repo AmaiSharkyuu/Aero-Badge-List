@@ -1,10 +1,10 @@
-# 🎖️ Frutiger Aero Badge List 🎖️ (Extension)
+# 🎖️ Aero Badge List 🎖️ (Extension)
 
-![Frutiger Aero Badge List](imgs/img.webp)
+![Aero Badge List](imgs/img.webp)
 
 ## 📜 Description 📜
 
-Frutiger Aero Badge List is a fork of [Advanced Badge List](https://github.com/meowbee-github/advancedbadgelist), a robust extension designed for badge collectors on Roblox, offering an enhanced badge management experience. This fork reskins the UI in a glossy Frutiger Aero style — sharp square edges (no rounded corners anywhere), glass-like panels, and glossy gradient buttons — while keeping all the original functionality (filters, ownership checking, badge refreshing, Cloud Key support for bulk ownership checks).
+Aero Badge List is a fork of [Advanced Badge List](https://github.com/meowbee-github/advancedbadgelist), a robust extension designed for badge collectors on Roblox, offering an enhanced badge management experience. This fork reskins the UI in a glossy Frutiger Aero style — sharp square edges (no rounded corners anywhere), glass-like panels, and glossy gradient buttons — while keeping all the original functionality (filters, ownership checking, badge refreshing, Cloud Key support for bulk ownership checks).
 
 ## 🛠️ Installation 🛠️
 
@@ -64,7 +64,7 @@ Frutiger Aero Badge List is a fork of [Advanced Badge List](https://github.com/m
   - [Roblox Profile](https://roblox.com/users/682634751/profile)
   - [Discord](https://discord.com/users/514771097221070849)
 
-### Frutiger Aero fork
+### Aero Badge List fork
 
 - **AmaiSharkyuu**
   - [Roblox Profile](https://www.roblox.com/users/1957141708/profile)
@@ -85,11 +85,11 @@ Your key is stored locally in your browser only — it is never sent anywhere ex
 
 ## ❓ FAQ ❓
 
-Welcome to the Frequently Asked Questions (FAQ) section where common queries about the Frutiger Aero Badge List extension are addressed.
+Welcome to the Frequently Asked Questions (FAQ) section where common queries about the Aero Badge List extension are addressed.
 
 ### Basic Settings
 
-#### Q: What is the 'Frutiger Aero Badge List' plugin?
+#### Q: What is the 'Aero Badge List' plugin?
 A: It's a fork of Advanced Badge List that assists badge collectors by providing comprehensive information and efficient badge sorting capabilities, with a reworked glossy, square-edged UI.
 
 #### Q: How do I set up the plugin?

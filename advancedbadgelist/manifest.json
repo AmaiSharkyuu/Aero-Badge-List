@@ -1,6 +1,6 @@
 {
     "manifest_version": 3,
-    "name": "Frutiger Aero Badge List",
+    "name": "Aero Badge List",
     "version": "2.0.1",
     "description": "Adds an advanced version of the Roblox badge list. Features filters, the ability to view other users, badge refreshing, and more.",
     "permissions": [
