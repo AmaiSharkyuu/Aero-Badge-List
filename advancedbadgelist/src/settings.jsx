@@ -1,3 +1,5 @@
+import { themeVars, normalizeTheme, PRESETS } from "./themeColors.js";
+
 (async function() {
     function createElement(tag, props, ...children) {
         const el = document.createElement(tag);
@@ -110,8 +112,9 @@
     .abl-theme-preview-btn {
         padding: 6px 14px;
         border-radius: 0;
-        background: linear-gradient(to bottom, hsl(var(--p-hue) var(--p-sat) 62%) 0%, hsl(var(--p-hue) calc(var(--p-sat) * 0.9) 36%) 55%, hsl(calc(var(--p-hue) + 4) calc(var(--p-sat) * 0.9) 18%) 100%);
-        border: 1px solid hsl(var(--p-hue) var(--p-sat) 89% / 0.85);
+        background-color: var(--abl-btn-mid, hsl(200, 85.5%, 36%));
+        background-image: linear-gradient(to bottom, var(--abl-btn-top, hsl(200, 95%, 62%)) 0%, var(--abl-btn-mid, hsl(200, 85.5%, 36%)) 55%, var(--abl-aero-accent-dark, hsl(204, 85.5%, 18%)) 100%);
+        border: 1px solid var(--abl-aero-border-bright, rgba(210, 245, 255, 0.85));
         color: #fff;
         font-size: 12px;
         font-weight: 600;
@@ -468,15 +471,14 @@
             const preview = document.getElementById("abl-theme-preview");
             const previewChip = document.getElementById("abl-theme-preview-chip");
 
-            const PRESETS = {
-                aero: { hue: 200, sat: 95 },
-                mono: { hue: 0, sat: 0 }
-            };
-
             function updatePreview(theme) {
-                preview.style.setProperty("--p-hue", theme.hue);
-                preview.style.setProperty("--p-sat", theme.sat + "%");
-                previewChip.style.setProperty("--p-rarity", theme.preset === "mono" ? "#ffffff" : "#ffd700");
+                const vars = themeVars(theme);
+
+                for (const name in vars) {
+                    preview.style.setProperty(name, vars[name]);
+                }
+
+                previewChip.style.setProperty("--p-rarity", vars["--abl-rarity-valuable"] || "#ffd700");
             }
 
             function setActivePresetButton(preset) {
@@ -484,7 +486,7 @@
                 customRow.style.display = preset === "custom" ? "flex" : "none";
             }
 
-            const savedTheme = (await getSetting("ablTheme")) || { preset: "aero", hue: 200, sat: 95 };
+            const savedTheme = normalizeTheme(await getSetting("ablTheme"));
 
             setActivePresetButton(savedTheme.preset);
             updatePreview(savedTheme);

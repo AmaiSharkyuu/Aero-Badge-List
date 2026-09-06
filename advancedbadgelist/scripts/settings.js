@@ -1,5 +1,13 @@
 (() => {
   var __getOwnPropNames = Object.getOwnPropertyNames;
+  var __esm = (fn, res, err) => function __init() {
+    if (err) throw err[0];
+    try {
+      return fn && (res = (0, fn[__getOwnPropNames(fn)[0]])(fn = 0)), res;
+    } catch (e) {
+      throw err = [e], e;
+    }
+  };
   var __commonJS = (cb, mod) => function __require() {
     try {
       return mod || (0, cb[__getOwnPropNames(cb)[0]])((mod = { exports: {} }).exports, mod), mod.exports;
@@ -8,9 +16,80 @@
     }
   };
 
+  // src/themeColors.js
+  function clamp(value, min, max) {
+    return Math.max(min, Math.min(max, value));
+  }
+  function round(value) {
+    return Math.round(value * 10) / 10;
+  }
+  function hsl(h, s, l, a = 1) {
+    const hue = (Math.round(h) % 360 + 360) % 360;
+    const sat = round(clamp(s, 0, 100));
+    const light = round(clamp(l, 0, 100));
+    if (a >= 1) {
+      return `hsl(${hue}, ${sat}%, ${light}%)`;
+    }
+    return `hsla(${hue}, ${sat}%, ${light}%, ${a})`;
+  }
+  function num(value, fallback) {
+    const parsed = typeof value === "number" ? value : typeof value === "string" && value.trim() !== "" ? Number(value) : NaN;
+    return Number.isFinite(parsed) ? parsed : fallback;
+  }
+  function normalizeTheme(stored) {
+    const theme = stored && typeof stored === "object" ? stored : {};
+    const preset = PRESETS[theme.preset] ? theme.preset : theme.preset === "custom" ? "custom" : "aero";
+    const base = PRESETS[preset] || PRESETS.aero;
+    return {
+      preset,
+      hue: num(theme.hue, base.hue),
+      sat: clamp(num(theme.sat, base.sat), 0, 100)
+    };
+  }
+  function themeVars(stored) {
+    const { preset, hue, sat } = normalizeTheme(stored);
+    const vars = {
+      "--abl-aero-border": hsl(hue, sat, 79, 0.45),
+      "--abl-aero-border-bright": hsl(hue, sat, 89, 0.85),
+      "--abl-aero-accent-dark": hsl(hue + 4, sat * 0.9, 18),
+      "--abl-panel-tint": hsl(hue, sat, 56, 0.14),
+      "--abl-icon-tint": hsl(hue, sat, 74, 0.08),
+      "--abl-icon-border": hsl(hue, sat, 79, 0.25),
+      "--abl-ghost-hover": hsl(hue, sat, 74, 0.12),
+      "--abl-btn-top": hsl(hue, sat, 62),
+      "--abl-btn-mid": hsl(hue, sat * 0.9, 36),
+      "--abl-knob-mid": hsl(hue, sat * 0.3, 92),
+      "--abl-knob-edge": hsl(hue, sat * 0.5, 84)
+    };
+    if (preset === "mono") {
+      Object.assign(vars, MONO_OVERRIDES);
+    }
+    return vars;
+  }
+  var PRESETS, MONO_OVERRIDES;
+  var init_themeColors = __esm({
+    "src/themeColors.js"() {
+      PRESETS = {
+        aero: { hue: 200, sat: 95 },
+        mono: { hue: 0, sat: 0 }
+      };
+      MONO_OVERRIDES = {
+        "--abl-toggle-off": "#3a3a3a",
+        "--abl-toggle-on": "#cfcfcf",
+        "--abl-rarity-valuable": "#ffffff",
+        "--abl-rarity-legacy": "#9a9a9a",
+        "--abl-rarity-nvl": "#4a4a4a",
+        "--abl-rarity-valuable-glow": "rgba(255, 255, 255, 0.6)",
+        "--abl-rarity-legacy-glow": "rgba(154, 154, 154, 0.5)",
+        "--abl-rarity-nvl-glow": "rgba(74, 74, 74, 0.6)"
+      };
+    }
+  });
+
   // src/settings.jsx
   var require_settings = __commonJS({
     "src/settings.jsx"() {
+      init_themeColors();
       (async function() {
         function createElement(tag, props, ...children) {
           const el = document.createElement(tag);
@@ -119,8 +198,9 @@
     .abl-theme-preview-btn {
         padding: 6px 14px;
         border-radius: 0;
-        background: linear-gradient(to bottom, hsl(var(--p-hue) var(--p-sat) 62%) 0%, hsl(var(--p-hue) calc(var(--p-sat) * 0.9) 36%) 55%, hsl(calc(var(--p-hue) + 4) calc(var(--p-sat) * 0.9) 18%) 100%);
-        border: 1px solid hsl(var(--p-hue) var(--p-sat) 89% / 0.85);
+        background-color: var(--abl-btn-mid, hsl(200, 85.5%, 36%));
+        background-image: linear-gradient(to bottom, var(--abl-btn-top, hsl(200, 95%, 62%)) 0%, var(--abl-btn-mid, hsl(200, 85.5%, 36%)) 55%, var(--abl-aero-accent-dark, hsl(204, 85.5%, 18%)) 100%);
+        border: 1px solid var(--abl-aero-border-bright, rgba(210, 245, 255, 0.85));
         color: #fff;
         font-size: 12px;
         font-weight: 600;
@@ -363,15 +443,16 @@
             tabContent.appendChild(cloudkeySettingsTab);
           }
           if (id === "abl-theme") {
-            let updatePreview2 = function(theme) {
-              preview.style.setProperty("--p-hue", theme.hue);
-              preview.style.setProperty("--p-sat", theme.sat + "%");
-              previewChip.style.setProperty("--p-rarity", theme.preset === "mono" ? "#ffffff" : "#ffd700");
-            }, setActivePresetButton2 = function(preset) {
+            let updatePreview = function(theme) {
+              const vars = themeVars(theme);
+              for (const name in vars) {
+                preview.style.setProperty(name, vars[name]);
+              }
+              previewChip.style.setProperty("--p-rarity", vars["--abl-rarity-valuable"] || "#ffd700");
+            }, setActivePresetButton = function(preset) {
               presetButtons.forEach((b) => b.classList.toggle("active", b.dataset.preset === preset));
               customRow.style.display = preset === "custom" ? "flex" : "none";
             };
-            var updatePreview = updatePreview2, setActivePresetButton = setActivePresetButton2;
             tabContent.replaceChildren(
               /* @__PURE__ */ createElement("div", { className: "section" }, /* @__PURE__ */ createElement("h3", null, "Theme"), /* @__PURE__ */ createElement("p", { className: "font-caption-body", style: { opacity: "0.7", marginBottom: "12px" } }, "Changes apply next time you load a game page."), /* @__PURE__ */ createElement("div", { id: "abl-theme-presets", style: { display: "flex", gap: "8px" } }, /* @__PURE__ */ createElement("button", { className: "abl-theme-btn", type: "button", "data-preset": "aero" }, "Aero"), /* @__PURE__ */ createElement("button", { className: "abl-theme-btn", type: "button", "data-preset": "mono" }, "Monochrome"), /* @__PURE__ */ createElement("button", { className: "abl-theme-btn", type: "button", "data-preset": "custom" }, "Custom")), /* @__PURE__ */ createElement("div", { id: "abl-theme-custom-row", style: { display: "none", alignItems: "center", gap: "10px", marginTop: "12px" } }, /* @__PURE__ */ createElement("span", { className: "font-caption-header", style: { fontSize: "14px" } }, "Accent color"), /* @__PURE__ */ createElement("input", { type: "color", id: "abl-theme-color", value: "#3fc6ff", style: { width: "44px", height: "32px", padding: "0", border: "none", background: "none", cursor: "pointer" } })), /* @__PURE__ */ createElement("div", { className: "abl-theme-preview", id: "abl-theme-preview" }, /* @__PURE__ */ createElement("button", { className: "abl-theme-preview-btn", type: "button" }, "Load"), /* @__PURE__ */ createElement("div", { className: "abl-theme-preview-chip", id: "abl-theme-preview-chip" }), /* @__PURE__ */ createElement("span", { style: { fontSize: "12px", opacity: "0.6" } }, "Preview")))
             );
@@ -380,28 +461,24 @@
             const colorInput = document.getElementById("abl-theme-color");
             const preview = document.getElementById("abl-theme-preview");
             const previewChip = document.getElementById("abl-theme-preview-chip");
-            const PRESETS = {
-              aero: { hue: 200, sat: 95 },
-              mono: { hue: 0, sat: 0 }
-            };
-            const savedTheme = await getSetting("ablTheme") || { preset: "aero", hue: 200, sat: 95 };
-            setActivePresetButton2(savedTheme.preset);
-            updatePreview2(savedTheme);
+            const savedTheme = normalizeTheme(await getSetting("ablTheme"));
+            setActivePresetButton(savedTheme.preset);
+            updatePreview(savedTheme);
             if (savedTheme.preset === "custom") {
               colorInput.value = hslToHex(savedTheme.hue, savedTheme.sat, 55);
             }
             presetButtons.forEach((btn) => {
               btn.addEventListener("click", async () => {
                 const preset = btn.dataset.preset;
-                setActivePresetButton2(preset);
+                setActivePresetButton(preset);
                 const theme = preset === "custom" ? { preset: "custom", ...hexToHueSat(colorInput.value) } : { preset, ...PRESETS[preset] };
-                updatePreview2(theme);
+                updatePreview(theme);
                 await setSetting("ablTheme", theme);
               });
             });
             colorInput.addEventListener("input", async () => {
               const theme = { preset: "custom", ...hexToHueSat(colorInput.value) };
-              updatePreview2(theme);
+              updatePreview(theme);
               await setSetting("ablTheme", theme);
             });
           }

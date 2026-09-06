@@ -1,5 +1,13 @@
 (() => {
   var __getOwnPropNames = Object.getOwnPropertyNames;
+  var __esm = (fn, res, err) => function __init() {
+    if (err) throw err[0];
+    try {
+      return fn && (res = (0, fn[__getOwnPropNames(fn)[0]])(fn = 0)), res;
+    } catch (e) {
+      throw err = [e], e;
+    }
+  };
   var __commonJS = (cb, mod) => function __require() {
     try {
       return mod || (0, cb[__getOwnPropNames(cb)[0]])((mod = { exports: {} }).exports, mod), mod.exports;
@@ -8,9 +16,80 @@
     }
   };
 
+  // src/themeColors.js
+  function clamp(value, min, max) {
+    return Math.max(min, Math.min(max, value));
+  }
+  function round(value) {
+    return Math.round(value * 10) / 10;
+  }
+  function hsl(h, s, l, a = 1) {
+    const hue = (Math.round(h) % 360 + 360) % 360;
+    const sat = round(clamp(s, 0, 100));
+    const light = round(clamp(l, 0, 100));
+    if (a >= 1) {
+      return `hsl(${hue}, ${sat}%, ${light}%)`;
+    }
+    return `hsla(${hue}, ${sat}%, ${light}%, ${a})`;
+  }
+  function num(value, fallback) {
+    const parsed = typeof value === "number" ? value : typeof value === "string" && value.trim() !== "" ? Number(value) : NaN;
+    return Number.isFinite(parsed) ? parsed : fallback;
+  }
+  function normalizeTheme(stored) {
+    const theme = stored && typeof stored === "object" ? stored : {};
+    const preset = PRESETS[theme.preset] ? theme.preset : theme.preset === "custom" ? "custom" : "aero";
+    const base = PRESETS[preset] || PRESETS.aero;
+    return {
+      preset,
+      hue: num(theme.hue, base.hue),
+      sat: clamp(num(theme.sat, base.sat), 0, 100)
+    };
+  }
+  function themeVars(stored) {
+    const { preset, hue, sat } = normalizeTheme(stored);
+    const vars = {
+      "--abl-aero-border": hsl(hue, sat, 79, 0.45),
+      "--abl-aero-border-bright": hsl(hue, sat, 89, 0.85),
+      "--abl-aero-accent-dark": hsl(hue + 4, sat * 0.9, 18),
+      "--abl-panel-tint": hsl(hue, sat, 56, 0.14),
+      "--abl-icon-tint": hsl(hue, sat, 74, 0.08),
+      "--abl-icon-border": hsl(hue, sat, 79, 0.25),
+      "--abl-ghost-hover": hsl(hue, sat, 74, 0.12),
+      "--abl-btn-top": hsl(hue, sat, 62),
+      "--abl-btn-mid": hsl(hue, sat * 0.9, 36),
+      "--abl-knob-mid": hsl(hue, sat * 0.3, 92),
+      "--abl-knob-edge": hsl(hue, sat * 0.5, 84)
+    };
+    if (preset === "mono") {
+      Object.assign(vars, MONO_OVERRIDES);
+    }
+    return vars;
+  }
+  var PRESETS, MONO_OVERRIDES;
+  var init_themeColors = __esm({
+    "src/themeColors.js"() {
+      PRESETS = {
+        aero: { hue: 200, sat: 95 },
+        mono: { hue: 0, sat: 0 }
+      };
+      MONO_OVERRIDES = {
+        "--abl-toggle-off": "#3a3a3a",
+        "--abl-toggle-on": "#cfcfcf",
+        "--abl-rarity-valuable": "#ffffff",
+        "--abl-rarity-legacy": "#9a9a9a",
+        "--abl-rarity-nvl": "#4a4a4a",
+        "--abl-rarity-valuable-glow": "rgba(255, 255, 255, 0.6)",
+        "--abl-rarity-legacy-glow": "rgba(154, 154, 154, 0.5)",
+        "--abl-rarity-nvl-glow": "rgba(74, 74, 74, 0.6)"
+      };
+    }
+  });
+
   // src/gamePage.jsx
   var require_gamePage = __commonJS({
     "src/gamePage.jsx"() {
+      init_themeColors();
       (async function() {
         function createElement(tag, props, ...children) {
           const el = document.createElement(tag);
@@ -122,16 +201,10 @@
           return;
         }
         async function applyTheme() {
-          const theme = await getSetting("ablTheme") || { preset: "aero", hue: 200, sat: 95 };
+          const vars = themeVars(await getSetting("ablTheme"));
           const root = document.documentElement;
-          root.style.setProperty("--abl-hue", theme.hue);
-          root.style.setProperty("--abl-sat", theme.sat + "%");
-          if (theme.preset === "mono") {
-            root.style.setProperty("--abl-toggle-off", "#3a3a3a");
-            root.style.setProperty("--abl-toggle-on", "#cfcfcf");
-            root.style.setProperty("--abl-rarity-valuable", "#ffffff");
-            root.style.setProperty("--abl-rarity-legacy", "#9a9a9a");
-            root.style.setProperty("--abl-rarity-nvl", "#4a4a4a");
+          for (const name in vars) {
+            root.style.setProperty(name, vars[name]);
           }
         }
         const NVL_list = await fetch(chrome.runtime.getURL("NVL.json")).then(function(response) {
@@ -382,39 +455,45 @@
         ablStyle.innerHTML = `
     :root {
         --abl-color-surface: rgb(11, 11, 14);
-        --abl-hue: 200;
-        --abl-sat: 95%;
-        --abl-aero-border: hsl(var(--abl-hue) var(--abl-sat) 79% / 0.45);
-        --abl-aero-border-bright: hsl(var(--abl-hue) var(--abl-sat) 89% / 0.85);
-        --abl-aero-accent-dark: hsl(calc(var(--abl-hue) + 4) calc(var(--abl-sat) * 0.9) 18%);
-        --abl-panel-tint: hsl(var(--abl-hue) var(--abl-sat) 56% / 0.14);
-        --abl-icon-tint: hsl(var(--abl-hue) var(--abl-sat) 74% / 0.08);
-        --abl-icon-border: hsl(var(--abl-hue) var(--abl-sat) 79% / 0.25);
-        --abl-ghost-hover: hsl(var(--abl-hue) var(--abl-sat) 74% / 0.12);
-        --abl-btn-top: hsl(var(--abl-hue) var(--abl-sat) 62%);
-        --abl-btn-mid: hsl(var(--abl-hue) calc(var(--abl-sat) * 0.9) 36%);
-        --abl-knob-mid: hsl(var(--abl-hue) calc(var(--abl-sat) * 0.3) 92%);
-        --abl-knob-edge: hsl(var(--abl-hue) calc(var(--abl-sat) * 0.5) 84%);
+        --abl-aero-border: hsla(200, 95%, 79%, 0.45);
+        --abl-aero-border-bright: hsla(200, 95%, 89%, 0.85);
+        --abl-aero-accent-dark: hsl(204, 85.5%, 18%);
+        --abl-panel-tint: hsla(200, 95%, 56%, 0.14);
+        --abl-icon-tint: hsla(200, 95%, 74%, 0.08);
+        --abl-icon-border: hsla(200, 95%, 79%, 0.25);
+        --abl-ghost-hover: hsla(200, 95%, 74%, 0.12);
+        --abl-btn-top: hsl(200, 95%, 62%);
+        --abl-btn-mid: hsl(200, 85.5%, 36%);
+        --abl-knob-mid: hsl(200, 28.5%, 92%);
+        --abl-knob-edge: hsl(200, 47.5%, 84%);
         --abl-toggle-off: #b0362f;
         --abl-toggle-on: #2e9e46;
         --abl-rarity-valuable: #ffd700;
         --abl-rarity-legacy: #0080ff;
         --abl-rarity-nvl: #ff1100;
+        --abl-rarity-valuable-glow: rgba(255, 215, 0, 0.5);
+        --abl-rarity-legacy-glow: rgba(0, 128, 255, 0.5);
+        --abl-rarity-nvl-glow: rgba(255, 17, 0, 0.5);
     }
 
+    /* background-color is kept separate from background-image so a theme
+       variable that fails to resolve can never leave the panel transparent. */
+    /* --abl-color-surface is kept in sync with Roblox's own light/dark theme in
+       onUpdate(), so panels follow the site theme. Text colour is deliberately
+       left to inherit from the page for the same reason: forcing it here makes
+       it unreadable in whichever theme it wasn't picked for. */
     .abl-background {
-        background:
+        background-color: var(--abl-color-surface, rgb(11, 11, 14));
+        background-image:
             linear-gradient(to bottom, rgba(255, 255, 255, 0.14) 0%, rgba(255, 255, 255, 0.04) 10%, rgba(255, 255, 255, 0) 32%),
-            linear-gradient(to bottom, var(--abl-panel-tint), rgba(6, 10, 16, 0) 60%),
-            var(--abl-color-surface);
-        border: 1px solid var(--abl-aero-border);
-        border-top-color: var(--abl-aero-border-bright);
+            linear-gradient(to bottom, var(--abl-panel-tint, rgba(41, 182, 246, 0.14)), rgba(6, 10, 16, 0) 60%);
+        border: 1px solid var(--abl-aero-border, rgba(150, 215, 255, 0.45));
+        border-top-color: var(--abl-aero-border-bright, rgba(210, 245, 255, 0.85));
         box-shadow:
             inset 0 1px 0 rgba(255, 255, 255, 0.5),
             inset 0 -1px 0 rgba(0, 0, 0, 0.5),
             0 2px 5px rgba(0, 0, 0, 0.45);
         border-radius: 0;
-        color: #f2fdff;
     }
 
     .abl-unowned {
@@ -424,10 +503,11 @@
 
     .abl-button {
         padding: 5px 11px;
-        background:
+        background-color: var(--abl-btn-mid, hsl(200, 85.5%, 36%));
+        background-image:
             linear-gradient(to bottom, rgba(255, 255, 255, 0.55) 0%, rgba(255, 255, 255, 0.12) 14%, rgba(255, 255, 255, 0) 50%),
-            linear-gradient(to bottom, var(--abl-btn-top) 0%, var(--abl-btn-mid) 55%, var(--abl-aero-accent-dark) 100%);
-        border: 1px solid var(--abl-aero-border-bright);
+            linear-gradient(to bottom, var(--abl-btn-top, hsl(200, 95%, 62%)) 0%, var(--abl-btn-mid, hsl(200, 85.5%, 36%)) 55%, var(--abl-aero-accent-dark, hsl(204, 85.5%, 18%)) 100%);
+        border: 1px solid var(--abl-aero-border-bright, rgba(210, 245, 255, 0.85));
         box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.85), 0 1px 3px rgba(0, 0, 0, 0.5);
         color: #f2fdff;
         text-shadow: 0 1px 1px rgba(0, 20, 30, 0.6);
@@ -449,9 +529,9 @@
     }
 
     .abl-button:active {
-        background:
+        background-image:
             linear-gradient(to bottom, rgba(0, 0, 0, 0.25) 0%, rgba(255, 255, 255, 0.08) 60%),
-            linear-gradient(to bottom, var(--abl-btn-mid) 0%, var(--abl-btn-top) 100%);
+            linear-gradient(to bottom, var(--abl-btn-mid, hsl(200, 85.5%, 36%)) 0%, var(--abl-btn-top, hsl(200, 95%, 62%)) 100%);
         box-shadow: inset 0 2px 5px rgba(0, 0, 0, 0.6);
     }
 
@@ -463,13 +543,13 @@
     }
 
     .abl-ghost-button:hover {
-        background-color: var(--abl-ghost-hover);
+        background-color: var(--abl-ghost-hover, rgba(120, 200, 255, 0.12));
     }
 
     .abl-icon {
         border-radius: 0;
-        background-color: var(--abl-icon-tint);
-        border: 1px solid var(--abl-icon-border);
+        background-color: var(--abl-icon-tint, rgba(120, 200, 255, 0.08));
+        border: 1px solid var(--abl-icon-border, rgba(150, 215, 255, 0.25));
         aspect-ratio: 1;
     }
 
@@ -515,22 +595,24 @@
         height: 24px;
         margin-right: 10px;
         border-radius: 0;
-        background: linear-gradient(to bottom, rgba(255, 255, 255, 0.25) 0%, rgba(255, 255, 255, 0) 45%), var(--abl-toggle-off);
+        background-color: var(--abl-toggle-off, #b0362f);
+        background-image: linear-gradient(to bottom, rgba(255, 255, 255, 0.25) 0%, rgba(255, 255, 255, 0) 45%);
         border: 1px solid rgba(0, 0, 0, 0.4);
         box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.4);
         position: relative;
         cursor: pointer;
-        transition: background 0.2s ease;
+        transition: background-color 0.2s ease;
     }
 
     .abl-notFilterCheck.on {
-        background: linear-gradient(to bottom, rgba(255, 255, 255, 0.3) 0%, rgba(255, 255, 255, 0) 45%), var(--abl-toggle-on);
+        background-color: var(--abl-toggle-on, #2e9e46);
     }
 
     .abl-notFilterCheck-knob {
         width: 20px;
         height: 20px;
-        background: linear-gradient(to bottom, #ffffff 0%, var(--abl-knob-mid) 45%, var(--abl-knob-edge) 55%, #ffffff 100%);
+        background-color: #ffffff;
+        background-image: linear-gradient(to bottom, #ffffff 0%, var(--abl-knob-mid, hsl(200, 28.5%, 92%)) 45%, var(--abl-knob-edge, hsl(200, 47.5%, 84%)) 55%, #ffffff 100%);
         border: 1px solid rgba(255, 255, 255, 0.9);
         box-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
         border-radius: 0;
@@ -631,18 +713,18 @@
     }
 
     .abl-value-border.valuable {
-        border-color: var(--abl-rarity-valuable);
-        box-shadow: 0 0 6px color-mix(in srgb, var(--abl-rarity-valuable) 50%, transparent);
+        border-color: var(--abl-rarity-valuable, #ffd700);
+        box-shadow: 0 0 6px var(--abl-rarity-valuable-glow, rgba(255, 215, 0, 0.5));
     }
 
     .abl-value-border.legacy {
-        border-color: var(--abl-rarity-legacy);
-        box-shadow: 0 0 6px color-mix(in srgb, var(--abl-rarity-legacy) 50%, transparent);
+        border-color: var(--abl-rarity-legacy, #0080ff);
+        box-shadow: 0 0 6px var(--abl-rarity-legacy-glow, rgba(0, 128, 255, 0.5));
     }
 
     .abl-value-border.nvl {
-        border-color: var(--abl-rarity-nvl);
-        box-shadow: 0 0 6px color-mix(in srgb, var(--abl-rarity-nvl) 50%, transparent);
+        border-color: var(--abl-rarity-nvl, #ff1100);
+        box-shadow: 0 0 6px var(--abl-rarity-nvl-glow, rgba(255, 17, 0, 0.5));
     }
 
     #abl-filter-options-list {
@@ -662,11 +744,11 @@
         font-size: 12px;
         line-height: 1.35;
 
-        background:
-            linear-gradient(to bottom, rgba(255, 255, 255, 0.14) 0%, rgba(255, 255, 255, 0.03) 18%, rgba(255, 255, 255, 0) 40%),
-            rgba(8, 12, 18, 0.94);
-        border: 1px solid var(--abl-aero-border);
-        border-top-color: var(--abl-aero-border-bright);
+        background-color: var(--abl-color-surface, rgb(11, 11, 14));
+        background-image:
+            linear-gradient(to bottom, rgba(255, 255, 255, 0.14) 0%, rgba(255, 255, 255, 0.03) 18%, rgba(255, 255, 255, 0) 40%);
+        border: 1px solid var(--abl-aero-border, rgba(150, 215, 255, 0.45));
+        border-top-color: var(--abl-aero-border-bright, rgba(210, 245, 255, 0.85));
         border-radius: 0;
         box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35), 0 4px 14px rgba(0, 0, 0, 0.5);
     }
