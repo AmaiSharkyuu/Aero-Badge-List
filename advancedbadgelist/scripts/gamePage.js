@@ -479,10 +479,12 @@
     /* background-color is kept separate from background-image so a theme
        variable that fails to resolve can never leave the panel transparent. */
     /* --abl-color-surface is kept in sync with Roblox's own light/dark theme in
-       onUpdate(), so panels follow the site theme. Text colour is deliberately
-       left to inherit from the page for the same reason: forcing it here makes
-       it unreadable in whichever theme it wasn't picked for. */
+       onUpdate(), so panels follow the site theme. Text uses Roblox's own
+       content colour for the same reason: form controls (select, input,
+       button) don't inherit colour from their parent, so leaving it unset
+       gives them the browser's default, which is white on our light panels. */
     .abl-background {
+        color: var(--color-content-default, inherit);
         background-color: var(--abl-color-surface, rgb(11, 11, 14));
         background-image:
             linear-gradient(to bottom, rgba(255, 255, 255, 0.14) 0%, rgba(255, 255, 255, 0.04) 10%, rgba(255, 255, 255, 0) 32%),
@@ -540,6 +542,7 @@
         border: none;
         padding: 0px;
         border-radius: 0;
+        color: var(--color-content-default, inherit);
     }
 
     .abl-ghost-button:hover {
