@@ -104,6 +104,7 @@
         margin-top: 16px;
         background: #0b0b0e;
         border: 1px solid rgba(150, 215, 255, 0.3);
+        color: #eafcff;
     }
 
     .abl-theme-preview-btn {

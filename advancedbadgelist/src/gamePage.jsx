@@ -476,6 +476,7 @@
             inset 0 -1px 0 rgba(0, 0, 0, 0.5),
             0 2px 5px rgba(0, 0, 0, 0.45);
         border-radius: 0;
+        color: #f2fdff;
     }
 
     .abl-unowned {
@@ -502,6 +503,7 @@
 
     .abl-dropdown-option {
         background-color: var(--color-surface-0);
+        color: var(--color-content-default);
     }
 
     .abl-button:hover {
