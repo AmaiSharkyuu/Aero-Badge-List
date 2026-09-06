@@ -46,27 +46,49 @@
       sat: clamp(num(theme.sat, base.sat), 0, 100)
     };
   }
-  function themeVars(stored) {
+  function lightSurface(h, s) {
+    return {
+      "--abl-gloss": `linear-gradient(to bottom, rgba(255, 255, 255, 0.92) 0%, rgba(255, 255, 255, 0.5) 44%, rgba(255, 255, 255, 0.06) 52%, rgba(255, 255, 255, 0.3) 100%)`,
+      "--abl-wash": `linear-gradient(to bottom, ${hsl(h, s, 93, 0.55)} 0%, ${hsl(h, s, 80, 0.6)} 55%, ${hsl(h, s, 71, 0.85)} 100%)`,
+      "--abl-panel-border": hsl(h, s * 0.9, 52, 0.5),
+      "--abl-panel-border-top": "rgba(255, 255, 255, 0.95)",
+      "--abl-panel-shadow": `inset 0 1px 0 rgba(255, 255, 255, 0.95), inset 0 -1px 0 ${hsl(h, s, 60, 0.35)}, 0 2px 6px ${hsl(h, s * 0.6, 35, 0.2)}`,
+      "--abl-icon-tint": hsl(h, s, 60, 0.14),
+      "--abl-icon-border": hsl(h, s, 50, 0.4),
+      "--abl-ghost-hover": hsl(h, s, 60, 0.18)
+    };
+  }
+  function darkSurface(h, s) {
+    return {
+      "--abl-gloss": "linear-gradient(to bottom, rgba(255, 255, 255, 0.14) 0%, rgba(255, 255, 255, 0.04) 10%, rgba(255, 255, 255, 0) 32%)",
+      "--abl-wash": `linear-gradient(to bottom, ${hsl(h, s, 56, 0.14)}, rgba(6, 10, 16, 0) 60%)`,
+      "--abl-panel-border": hsl(h, s, 79, 0.45),
+      "--abl-panel-border-top": hsl(h, s, 89, 0.85),
+      "--abl-panel-shadow": "inset 0 1px 0 rgba(255, 255, 255, 0.5), inset 0 -1px 0 rgba(0, 0, 0, 0.5), 0 2px 5px rgba(0, 0, 0, 0.45)",
+      "--abl-icon-tint": hsl(h, s, 74, 0.08),
+      "--abl-icon-border": hsl(h, s, 79, 0.25),
+      "--abl-ghost-hover": hsl(h, s, 74, 0.12)
+    };
+  }
+  function themeVars(stored, mode = "dark") {
     const { preset, hue, sat } = normalizeTheme(stored);
+    const surfaceMode = SURFACES[mode] ? mode : "dark";
     const vars = {
-      "--abl-aero-border": hsl(hue, sat, 79, 0.45),
+      "--abl-color-surface": SURFACES[surfaceMode],
       "--abl-aero-border-bright": hsl(hue, sat, 89, 0.85),
       "--abl-aero-accent-dark": hsl(hue + 4, sat * 0.9, 18),
-      "--abl-panel-tint": hsl(hue, sat, 56, 0.14),
-      "--abl-icon-tint": hsl(hue, sat, 74, 0.08),
-      "--abl-icon-border": hsl(hue, sat, 79, 0.25),
-      "--abl-ghost-hover": hsl(hue, sat, 74, 0.12),
       "--abl-btn-top": hsl(hue, sat, 62),
       "--abl-btn-mid": hsl(hue, sat * 0.9, 36),
       "--abl-knob-mid": hsl(hue, sat * 0.3, 92),
-      "--abl-knob-edge": hsl(hue, sat * 0.5, 84)
+      "--abl-knob-edge": hsl(hue, sat * 0.5, 84),
+      ...surfaceMode === "light" ? lightSurface(hue, sat) : darkSurface(hue, sat)
     };
     if (preset === "mono") {
       Object.assign(vars, MONO_OVERRIDES);
     }
     return vars;
   }
-  var PRESETS, MONO_OVERRIDES;
+  var PRESETS, MONO_OVERRIDES, SURFACES;
   var init_themeColors = __esm({
     "src/themeColors.js"() {
       PRESETS = {
@@ -82,6 +104,11 @@
         "--abl-rarity-valuable-glow": "rgba(255, 255, 255, 0.6)",
         "--abl-rarity-legacy-glow": "rgba(154, 154, 154, 0.5)",
         "--abl-rarity-nvl-glow": "rgba(74, 74, 74, 0.6)"
+      };
+      SURFACES = {
+        light: "rgb(251, 252, 253)",
+        dark: "rgb(13, 13, 16)",
+        unknown: "rgba(20, 20, 20, 0.05)"
       };
     }
   });
@@ -200,11 +227,31 @@
         if (await getSetting("ablEnabled") != true) {
           return;
         }
-        async function applyTheme() {
-          const vars = themeVars(await getSetting("ablTheme"));
+        let storedTheme = null;
+        let appliedSiteTheme = null;
+        function siteTheme() {
+          const body = document.querySelector("#rbx-body");
+          if (!body) return "unknown";
+          if (body.classList.contains("light-theme")) return "light";
+          if (body.classList.contains("dark-theme")) return "dark";
+          return "unknown";
+        }
+        function applySiteTheme(mode) {
+          const vars = themeVars(storedTheme, mode);
           const root = document.documentElement;
           for (const name in vars) {
             root.style.setProperty(name, vars[name]);
+          }
+          appliedSiteTheme = mode;
+        }
+        async function applyTheme() {
+          storedTheme = await getSetting("ablTheme");
+          applySiteTheme(siteTheme());
+        }
+        function refreshSiteTheme() {
+          const mode = siteTheme();
+          if (mode !== appliedSiteTheme) {
+            applySiteTheme(mode);
           }
         }
         const NVL_list = await fetch(chrome.runtime.getURL("NVL.json")).then(function(response) {
@@ -453,12 +500,17 @@
         let shimmerPosition = 0;
         const ablStyle = document.createElement("style");
         ablStyle.innerHTML = `
+    /* Dark-theme defaults; themeColors.js overwrites these on :root once it
+       knows the stored theme and which theme Roblox itself is showing. */
     :root {
         --abl-color-surface: rgb(11, 11, 14);
-        --abl-aero-border: hsla(200, 95%, 79%, 0.45);
+        --abl-gloss: linear-gradient(to bottom, rgba(255, 255, 255, 0.14) 0%, rgba(255, 255, 255, 0.04) 10%, rgba(255, 255, 255, 0) 32%);
+        --abl-wash: linear-gradient(to bottom, hsla(200, 95%, 56%, 0.14), rgba(6, 10, 16, 0) 60%);
+        --abl-panel-border: hsla(200, 95%, 79%, 0.45);
+        --abl-panel-border-top: hsla(200, 95%, 89%, 0.85);
+        --abl-panel-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.5), inset 0 -1px 0 rgba(0, 0, 0, 0.5), 0 2px 5px rgba(0, 0, 0, 0.45);
         --abl-aero-border-bright: hsla(200, 95%, 89%, 0.85);
         --abl-aero-accent-dark: hsl(204, 85.5%, 18%);
-        --abl-panel-tint: hsla(200, 95%, 56%, 0.14);
         --abl-icon-tint: hsla(200, 95%, 74%, 0.08);
         --abl-icon-border: hsla(200, 95%, 79%, 0.25);
         --abl-ghost-hover: hsla(200, 95%, 74%, 0.12);
@@ -486,15 +538,10 @@
     .abl-background {
         color: var(--color-content-default, inherit);
         background-color: var(--abl-color-surface, rgb(11, 11, 14));
-        background-image:
-            linear-gradient(to bottom, rgba(255, 255, 255, 0.14) 0%, rgba(255, 255, 255, 0.04) 10%, rgba(255, 255, 255, 0) 32%),
-            linear-gradient(to bottom, var(--abl-panel-tint, rgba(41, 182, 246, 0.14)), rgba(6, 10, 16, 0) 60%);
-        border: 1px solid var(--abl-aero-border, rgba(150, 215, 255, 0.45));
-        border-top-color: var(--abl-aero-border-bright, rgba(210, 245, 255, 0.85));
-        box-shadow:
-            inset 0 1px 0 rgba(255, 255, 255, 0.5),
-            inset 0 -1px 0 rgba(0, 0, 0, 0.5),
-            0 2px 5px rgba(0, 0, 0, 0.45);
+        background-image: var(--abl-gloss, linear-gradient(to bottom, rgba(255, 255, 255, 0.14) 0%, rgba(255, 255, 255, 0) 32%)), var(--abl-wash, linear-gradient(to bottom, rgba(41, 182, 246, 0.14), rgba(6, 10, 16, 0) 60%));
+        border: 1px solid var(--abl-panel-border, rgba(150, 215, 255, 0.45));
+        border-top-color: var(--abl-panel-border-top, rgba(210, 245, 255, 0.85));
+        box-shadow: var(--abl-panel-shadow, inset 0 1px 0 rgba(255, 255, 255, 0.5), inset 0 -1px 0 rgba(0, 0, 0, 0.5), 0 2px 5px rgba(0, 0, 0, 0.45));
         border-radius: 0;
     }
 
@@ -747,13 +794,8 @@
         font-size: 12px;
         line-height: 1.35;
 
-        background-color: var(--abl-color-surface, rgb(11, 11, 14));
-        background-image:
-            linear-gradient(to bottom, rgba(255, 255, 255, 0.14) 0%, rgba(255, 255, 255, 0.03) 18%, rgba(255, 255, 255, 0) 40%);
-        border: 1px solid var(--abl-aero-border, rgba(150, 215, 255, 0.45));
-        border-top-color: var(--abl-aero-border-bright, rgba(210, 245, 255, 0.85));
         border-radius: 0;
-        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35), 0 4px 14px rgba(0, 0, 0, 0.5);
+        box-shadow: var(--abl-panel-shadow, inset 0 1px 0 rgba(255, 255, 255, 0.35)), 0 4px 14px rgba(0, 0, 0, 0.35);
     }
 
     .abl-badge-hover-row {
@@ -1697,18 +1739,11 @@
         badgeList.onFilterListChanged.subscribe(function() {
           queueRefreshPage();
         });
-        const RBXbody = document.querySelector("#rbx-body");
         function onUpdate() {
           const nowS = Date.now() / 1e3;
           shimmerPosition = nowS % shimmerDuration / shimmerDuration;
           requestAnimationFrame(onUpdate);
-          if (RBXbody.classList.contains("light-theme")) {
-            document.documentElement.style.setProperty("--abl-color-surface", "rgb(251, 252, 253)");
-          } else if (RBXbody.classList.contains("dark-theme")) {
-            document.documentElement.style.setProperty("--abl-color-surface", "rgb(13, 13, 16)");
-          } else {
-            document.documentElement.style.setProperty("--abl-color-surface", "rgba(20, 20, 20, 0.05)");
-          }
+          refreshSiteTheme();
         }
         requestAnimationFrame(onUpdate);
         loadButton.onclick = load;

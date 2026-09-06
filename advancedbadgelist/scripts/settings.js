@@ -46,27 +46,49 @@
       sat: clamp(num(theme.sat, base.sat), 0, 100)
     };
   }
-  function themeVars(stored) {
+  function lightSurface(h, s) {
+    return {
+      "--abl-gloss": `linear-gradient(to bottom, rgba(255, 255, 255, 0.92) 0%, rgba(255, 255, 255, 0.5) 44%, rgba(255, 255, 255, 0.06) 52%, rgba(255, 255, 255, 0.3) 100%)`,
+      "--abl-wash": `linear-gradient(to bottom, ${hsl(h, s, 93, 0.55)} 0%, ${hsl(h, s, 80, 0.6)} 55%, ${hsl(h, s, 71, 0.85)} 100%)`,
+      "--abl-panel-border": hsl(h, s * 0.9, 52, 0.5),
+      "--abl-panel-border-top": "rgba(255, 255, 255, 0.95)",
+      "--abl-panel-shadow": `inset 0 1px 0 rgba(255, 255, 255, 0.95), inset 0 -1px 0 ${hsl(h, s, 60, 0.35)}, 0 2px 6px ${hsl(h, s * 0.6, 35, 0.2)}`,
+      "--abl-icon-tint": hsl(h, s, 60, 0.14),
+      "--abl-icon-border": hsl(h, s, 50, 0.4),
+      "--abl-ghost-hover": hsl(h, s, 60, 0.18)
+    };
+  }
+  function darkSurface(h, s) {
+    return {
+      "--abl-gloss": "linear-gradient(to bottom, rgba(255, 255, 255, 0.14) 0%, rgba(255, 255, 255, 0.04) 10%, rgba(255, 255, 255, 0) 32%)",
+      "--abl-wash": `linear-gradient(to bottom, ${hsl(h, s, 56, 0.14)}, rgba(6, 10, 16, 0) 60%)`,
+      "--abl-panel-border": hsl(h, s, 79, 0.45),
+      "--abl-panel-border-top": hsl(h, s, 89, 0.85),
+      "--abl-panel-shadow": "inset 0 1px 0 rgba(255, 255, 255, 0.5), inset 0 -1px 0 rgba(0, 0, 0, 0.5), 0 2px 5px rgba(0, 0, 0, 0.45)",
+      "--abl-icon-tint": hsl(h, s, 74, 0.08),
+      "--abl-icon-border": hsl(h, s, 79, 0.25),
+      "--abl-ghost-hover": hsl(h, s, 74, 0.12)
+    };
+  }
+  function themeVars(stored, mode = "dark") {
     const { preset, hue, sat } = normalizeTheme(stored);
+    const surfaceMode = SURFACES[mode] ? mode : "dark";
     const vars = {
-      "--abl-aero-border": hsl(hue, sat, 79, 0.45),
+      "--abl-color-surface": SURFACES[surfaceMode],
       "--abl-aero-border-bright": hsl(hue, sat, 89, 0.85),
       "--abl-aero-accent-dark": hsl(hue + 4, sat * 0.9, 18),
-      "--abl-panel-tint": hsl(hue, sat, 56, 0.14),
-      "--abl-icon-tint": hsl(hue, sat, 74, 0.08),
-      "--abl-icon-border": hsl(hue, sat, 79, 0.25),
-      "--abl-ghost-hover": hsl(hue, sat, 74, 0.12),
       "--abl-btn-top": hsl(hue, sat, 62),
       "--abl-btn-mid": hsl(hue, sat * 0.9, 36),
       "--abl-knob-mid": hsl(hue, sat * 0.3, 92),
-      "--abl-knob-edge": hsl(hue, sat * 0.5, 84)
+      "--abl-knob-edge": hsl(hue, sat * 0.5, 84),
+      ...surfaceMode === "light" ? lightSurface(hue, sat) : darkSurface(hue, sat)
     };
     if (preset === "mono") {
       Object.assign(vars, MONO_OVERRIDES);
     }
     return vars;
   }
-  var PRESETS, MONO_OVERRIDES;
+  var PRESETS, MONO_OVERRIDES, SURFACES;
   var init_themeColors = __esm({
     "src/themeColors.js"() {
       PRESETS = {
@@ -82,6 +104,11 @@
         "--abl-rarity-valuable-glow": "rgba(255, 255, 255, 0.6)",
         "--abl-rarity-legacy-glow": "rgba(154, 154, 154, 0.5)",
         "--abl-rarity-nvl-glow": "rgba(74, 74, 74, 0.6)"
+      };
+      SURFACES = {
+        light: "rgb(251, 252, 253)",
+        dark: "rgb(13, 13, 16)",
+        unknown: "rgba(20, 20, 20, 0.05)"
       };
     }
   });
@@ -190,9 +217,11 @@
         gap: 12px;
         padding: 14px;
         margin-top: 16px;
-        background: #0b0b0e;
-        border: 1px solid rgba(150, 215, 255, 0.3);
-        color: #eafcff;
+        color: var(--color-content-default, inherit);
+        background-color: var(--abl-color-surface, rgb(11, 11, 14));
+        background-image: var(--abl-gloss), var(--abl-wash);
+        border: 1px solid var(--abl-panel-border, rgba(150, 215, 255, 0.3));
+        border-top-color: var(--abl-panel-border-top, rgba(210, 245, 255, 0.85));
     }
 
     .abl-theme-preview-btn {
@@ -443,8 +472,14 @@
             tabContent.appendChild(cloudkeySettingsTab);
           }
           if (id === "abl-theme") {
-            let updatePreview = function(theme) {
-              const vars = themeVars(theme);
+            let siteTheme = function() {
+              const rbxBody = document.querySelector("#rbx-body");
+              if (!rbxBody) return "dark";
+              if (rbxBody.classList.contains("light-theme")) return "light";
+              if (rbxBody.classList.contains("dark-theme")) return "dark";
+              return "dark";
+            }, updatePreview = function(theme) {
+              const vars = themeVars(theme, siteTheme());
               for (const name in vars) {
                 preview.style.setProperty(name, vars[name]);
               }

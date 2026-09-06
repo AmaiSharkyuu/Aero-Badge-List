@@ -138,12 +138,42 @@ import { themeVars } from "./themeColors.js";
         return;
     }
 
-    async function applyTheme() {
-        const vars = themeVars(await getSetting("ablTheme"));
+    // Roblox's own theme decides whether panels render as smoked glass or as
+    // the light glossy gel, so the theme is reapplied whenever the site flips.
+    let storedTheme = null;
+    let appliedSiteTheme = null;
+
+    function siteTheme() {
+        const body = document.querySelector("#rbx-body");
+
+        if (!body) return "unknown";
+        if (body.classList.contains("light-theme")) return "light";
+        if (body.classList.contains("dark-theme")) return "dark";
+
+        return "unknown";
+    }
+
+    function applySiteTheme(mode) {
+        const vars = themeVars(storedTheme, mode);
         const root = document.documentElement;
 
         for (const name in vars) {
             root.style.setProperty(name, vars[name]);
+        }
+
+        appliedSiteTheme = mode;
+    }
+
+    async function applyTheme() {
+        storedTheme = await getSetting("ablTheme");
+        applySiteTheme(siteTheme());
+    }
+
+    function refreshSiteTheme() {
+        const mode = siteTheme();
+
+        if (mode !== appliedSiteTheme) {
+            applySiteTheme(mode);
         }
     }
 
@@ -437,12 +467,17 @@ import { themeVars } from "./themeColors.js";
 
     ablStyle.innerHTML = 
     `
+    /* Dark-theme defaults; themeColors.js overwrites these on :root once it
+       knows the stored theme and which theme Roblox itself is showing. */
     :root {
         --abl-color-surface: rgb(11, 11, 14);
-        --abl-aero-border: hsla(200, 95%, 79%, 0.45);
+        --abl-gloss: linear-gradient(to bottom, rgba(255, 255, 255, 0.14) 0%, rgba(255, 255, 255, 0.04) 10%, rgba(255, 255, 255, 0) 32%);
+        --abl-wash: linear-gradient(to bottom, hsla(200, 95%, 56%, 0.14), rgba(6, 10, 16, 0) 60%);
+        --abl-panel-border: hsla(200, 95%, 79%, 0.45);
+        --abl-panel-border-top: hsla(200, 95%, 89%, 0.85);
+        --abl-panel-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.5), inset 0 -1px 0 rgba(0, 0, 0, 0.5), 0 2px 5px rgba(0, 0, 0, 0.45);
         --abl-aero-border-bright: hsla(200, 95%, 89%, 0.85);
         --abl-aero-accent-dark: hsl(204, 85.5%, 18%);
-        --abl-panel-tint: hsla(200, 95%, 56%, 0.14);
         --abl-icon-tint: hsla(200, 95%, 74%, 0.08);
         --abl-icon-border: hsla(200, 95%, 79%, 0.25);
         --abl-ghost-hover: hsla(200, 95%, 74%, 0.12);
@@ -470,15 +505,10 @@ import { themeVars } from "./themeColors.js";
     .abl-background {
         color: var(--color-content-default, inherit);
         background-color: var(--abl-color-surface, rgb(11, 11, 14));
-        background-image:
-            linear-gradient(to bottom, rgba(255, 255, 255, 0.14) 0%, rgba(255, 255, 255, 0.04) 10%, rgba(255, 255, 255, 0) 32%),
-            linear-gradient(to bottom, var(--abl-panel-tint, rgba(41, 182, 246, 0.14)), rgba(6, 10, 16, 0) 60%);
-        border: 1px solid var(--abl-aero-border, rgba(150, 215, 255, 0.45));
-        border-top-color: var(--abl-aero-border-bright, rgba(210, 245, 255, 0.85));
-        box-shadow:
-            inset 0 1px 0 rgba(255, 255, 255, 0.5),
-            inset 0 -1px 0 rgba(0, 0, 0, 0.5),
-            0 2px 5px rgba(0, 0, 0, 0.45);
+        background-image: var(--abl-gloss, linear-gradient(to bottom, rgba(255, 255, 255, 0.14) 0%, rgba(255, 255, 255, 0) 32%)), var(--abl-wash, linear-gradient(to bottom, rgba(41, 182, 246, 0.14), rgba(6, 10, 16, 0) 60%));
+        border: 1px solid var(--abl-panel-border, rgba(150, 215, 255, 0.45));
+        border-top-color: var(--abl-panel-border-top, rgba(210, 245, 255, 0.85));
+        box-shadow: var(--abl-panel-shadow, inset 0 1px 0 rgba(255, 255, 255, 0.5), inset 0 -1px 0 rgba(0, 0, 0, 0.5), 0 2px 5px rgba(0, 0, 0, 0.45));
         border-radius: 0;
     }
 
@@ -731,13 +761,8 @@ import { themeVars } from "./themeColors.js";
         font-size: 12px;
         line-height: 1.35;
 
-        background-color: var(--abl-color-surface, rgb(11, 11, 14));
-        background-image:
-            linear-gradient(to bottom, rgba(255, 255, 255, 0.14) 0%, rgba(255, 255, 255, 0.03) 18%, rgba(255, 255, 255, 0) 40%);
-        border: 1px solid var(--abl-aero-border, rgba(150, 215, 255, 0.45));
-        border-top-color: var(--abl-aero-border-bright, rgba(210, 245, 255, 0.85));
         border-radius: 0;
-        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35), 0 4px 14px rgba(0, 0, 0, 0.5);
+        box-shadow: var(--abl-panel-shadow, inset 0 1px 0 rgba(255, 255, 255, 0.35)), 0 4px 14px rgba(0, 0, 0, 0.35);
     }
 
     .abl-badge-hover-row {
@@ -2098,8 +2123,6 @@ import { themeVars } from "./themeColors.js";
 
     // UI events
 
-    const RBXbody = document.querySelector("#rbx-body");
-
     function onUpdate() {
         const nowS = Date.now() / 1000;
 
@@ -2107,13 +2130,7 @@ import { themeVars } from "./themeColors.js";
 
         requestAnimationFrame(onUpdate);
 
-        if (RBXbody.classList.contains("light-theme")) {
-            document.documentElement.style.setProperty("--abl-color-surface", "rgb(251, 252, 253)");
-        } else if (RBXbody.classList.contains("dark-theme")) {
-            document.documentElement.style.setProperty("--abl-color-surface", "rgb(13, 13, 16)");
-        } else {
-            document.documentElement.style.setProperty("--abl-color-surface", "rgba(20, 20, 20, 0.05)");
-        }
+        refreshSiteTheme();
     }
 
     requestAnimationFrame(onUpdate);

@@ -104,9 +104,11 @@ import { themeVars, normalizeTheme, PRESETS } from "./themeColors.js";
         gap: 12px;
         padding: 14px;
         margin-top: 16px;
-        background: #0b0b0e;
-        border: 1px solid rgba(150, 215, 255, 0.3);
-        color: #eafcff;
+        color: var(--color-content-default, inherit);
+        background-color: var(--abl-color-surface, rgb(11, 11, 14));
+        background-image: var(--abl-gloss), var(--abl-wash);
+        border: 1px solid var(--abl-panel-border, rgba(150, 215, 255, 0.3));
+        border-top-color: var(--abl-panel-border-top, rgba(210, 245, 255, 0.85));
     }
 
     .abl-theme-preview-btn {
@@ -471,8 +473,18 @@ import { themeVars, normalizeTheme, PRESETS } from "./themeColors.js";
             const preview = document.getElementById("abl-theme-preview");
             const previewChip = document.getElementById("abl-theme-preview-chip");
 
+            function siteTheme() {
+                const rbxBody = document.querySelector("#rbx-body");
+
+                if (!rbxBody) return "dark";
+                if (rbxBody.classList.contains("light-theme")) return "light";
+                if (rbxBody.classList.contains("dark-theme")) return "dark";
+
+                return "dark";
+            }
+
             function updatePreview(theme) {
-                const vars = themeVars(theme);
+                const vars = themeVars(theme, siteTheme());
 
                 for (const name in vars) {
                     preview.style.setProperty(name, vars[name]);
