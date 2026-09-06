@@ -78,18 +78,22 @@ export function normalizeTheme(stored) {
     };
 }
 
-// Glossy sky-blue gel over a near-white surface: bright upper half, a crisp
-// break just past the middle, then a little sheen coming back at the bottom.
+// Luminous sky-blue gel. The specular highlight is a fixed-height band at the
+// top rather than a percentage, so a 120px badge card and a short button get
+// the same shine instead of tall panels turning into large white expanses.
 function lightSurface(h, s) {
     return {
-        "--abl-gloss": `linear-gradient(to bottom, rgba(255, 255, 255, 0.92) 0%, rgba(255, 255, 255, 0.5) 44%, rgba(255, 255, 255, 0.06) 52%, rgba(255, 255, 255, 0.3) 100%)`,
-        "--abl-wash": `linear-gradient(to bottom, ${hsl(h, s, 93, 0.55)} 0%, ${hsl(h, s, 80, 0.6)} 55%, ${hsl(h, s, 71, 0.85)} 100%)`,
-        "--abl-panel-border": hsl(h, s * 0.9, 52, 0.5),
+        "--abl-gloss": "linear-gradient(to bottom, rgba(255, 255, 255, 0.85) 0px, rgba(255, 255, 255, 0.45) 12px, rgba(255, 255, 255, 0.12) 26px, rgba(255, 255, 255, 0) 40px)",
+        "--abl-wash": `linear-gradient(to bottom, ${hsl(h, s, 92, 0.95)} 0%, ${hsl(h, s, 80, 0.95)} 42%, ${hsl(h, s, 70, 0.95)} 100%)`,
+        "--abl-panel-border": hsl(h, s * 0.85, 45, 0.55),
         "--abl-panel-border-top": "rgba(255, 255, 255, 0.95)",
-        "--abl-panel-shadow": `inset 0 1px 0 rgba(255, 255, 255, 0.95), inset 0 -1px 0 ${hsl(h, s, 60, 0.35)}, 0 2px 6px ${hsl(h, s * 0.6, 35, 0.2)}`,
-        "--abl-icon-tint": hsl(h, s, 60, 0.14),
-        "--abl-icon-border": hsl(h, s, 50, 0.4),
-        "--abl-ghost-hover": hsl(h, s, 60, 0.18)
+        "--abl-panel-shadow": `inset 0 1px 0 rgba(255, 255, 255, 0.9), inset 0 -1px 0 ${hsl(h, s, 45, 0.25)}, 0 2px 8px ${hsl(h, s * 0.5, 35, 0.25)}`,
+        "--abl-icon-tint": "rgba(255, 255, 255, 0.5)",
+        "--abl-icon-border": hsl(h, s * 0.9, 45, 0.5),
+        "--abl-ghost-hover": "rgba(255, 255, 255, 0.55)",
+        // Text fields read as glass over white rather than as another blue gel.
+        "--abl-field-bg": "rgba(255, 255, 255, 0.92)",
+        "--abl-field-image": "none"
     };
 }
 
@@ -103,7 +107,9 @@ function darkSurface(h, s) {
         "--abl-panel-shadow": "inset 0 1px 0 rgba(255, 255, 255, 0.5), inset 0 -1px 0 rgba(0, 0, 0, 0.5), 0 2px 5px rgba(0, 0, 0, 0.45)",
         "--abl-icon-tint": hsl(h, s, 74, 0.08),
         "--abl-icon-border": hsl(h, s, 79, 0.25),
-        "--abl-ghost-hover": hsl(h, s, 74, 0.12)
+        "--abl-ghost-hover": hsl(h, s, 74, 0.12),
+        "--abl-field-bg": SURFACES.dark,
+        "--abl-field-image": "none"
     };
 }
 

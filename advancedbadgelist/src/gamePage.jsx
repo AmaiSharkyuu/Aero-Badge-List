@@ -607,6 +607,14 @@ import { themeVars } from "./themeColors.js";
         opacity: 0.4;
     }
 
+    /* Fields sit inside the gel panels, so they get a plain surface of their
+       own instead of a second glossy gradient stacked on the first. */
+    .abl-filterTextInput,
+    select.abl-background {
+        background-color: var(--abl-field-bg, rgb(11, 11, 14));
+        background-image: var(--abl-field-image, none);
+    }
+
     .abl-notFilterCheck {
         width: 44px;
         height: 24px;
@@ -782,7 +790,7 @@ import { themeVars } from "./themeColors.js";
 
     .abl-badge-hover-value {
         font-weight: bold;
-    };
+    }
     `;
 
     document.head.appendChild(ablStyle);
