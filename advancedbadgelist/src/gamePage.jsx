@@ -716,6 +716,39 @@ import { themeVars } from "./themeColors.js";
     .abl-container-badge-content {
         overflow: hidden;
         flex: 1;
+        display: flex;
+        flex-direction: column;
+        min-width: 0;
+    }
+
+    /* A long description gives up space first, so the awarded date under it
+       stays visible inside the fixed-height card. */
+    .abl-badge-desc {
+        flex: 0 1 auto;
+        min-height: 0;
+        overflow: hidden;
+    }
+
+    /* Clamped to whole lines when the date is shown, so the description ends
+       on an ellipsis instead of being sliced through the middle of a line. */
+    .abl-has-awarded .abl-badge-desc {
+        display: -webkit-box;
+        -webkit-box-orient: vertical;
+        -webkit-line-clamp: 2;
+    }
+
+    /* 0.85 rather than lower: at 12px this still clears 4.5:1 on the deepest
+       blue of the light-theme gel. */
+    .abl-badge-awarded {
+        flex-shrink: 0;
+        margin: 2px 0 0;
+        font-size: 12px;
+        opacity: 0.85;
+    }
+
+    /* The page's own p { display } rules would otherwise override [hidden]. */
+    .abl-badge-awarded[hidden] {
+        display: none;
     }
 
     .abl-container-stat {
@@ -785,7 +818,7 @@ import { themeVars } from "./themeColors.js";
     }
     
     .abl-badge-hover-label {
-        opacity: 0.75;
+        opacity: 0.85;
     }
 
     .abl-badge-hover-value {
@@ -978,6 +1011,16 @@ import { themeVars } from "./themeColors.js";
         badgeHover.style.display = "none";
     }
 
+    function setAwardedLine(node, owned, awardedDate) {
+        const line = node.querySelector(".abl-badge-awarded");
+        if (!line) return;
+
+        const show = owned === true && awardedDate != null;
+        line.hidden = !show;
+        line.textContent = show ? `Awarded ${formatBadgeDate(awardedDate)}` : "";
+        line.parentElement.classList.toggle("abl-has-awarded", show);
+    }
+
     function createBadgeTemplate(id, value, imageSource, nameTxt, descTxt, awardedTotal, awardedToday, rate, active, owned) {
         const badgeURL = `https://www.roblox.com/badges/${id}/BADGE`
 
@@ -991,7 +1034,8 @@ import { themeVars } from "./themeColors.js";
             </div>
             <div class="abl-container-badge-content">
                 <p class="abl-bold-text">{nameTxt}</p>
-                <p>{descTxt}</p>
+                <p class="abl-badge-desc">{descTxt}</p>
+                <p class="abl-badge-awarded" hidden={true}></p>
             </div>
             <ul class="abl-container-badge-stats">
                 {createStatTemplate("Awarded Total", awardedTotal)}
@@ -1950,6 +1994,7 @@ import { themeVars } from "./themeColors.js";
 
             renderedBadgeNodes.set(badgeId, template);
             template.dataset.owned = ownershipChecker.ownsBadge(badgeId) === true ? "1" : "0";
+            setAwardedLine(template, ownershipChecker.ownsBadge(badgeId), ownershipChecker.getAwardedDate(badgeId));
 
             const img = template.querySelector("img");
             renderedBadgeImages.set(badge.iconId, img);
@@ -1968,6 +2013,10 @@ import { themeVars } from "./themeColors.js";
             const owned = ownershipChecker.ownsBadge(badgeId);
 
             const state = owned === true ? "1" : owned === false ? "0" : "-1";
+
+            // Done before the unchanged-state shortcut below: switching to another
+            // user who also owns the badge keeps the state but changes the date.
+            setAwardedLine(node, owned, ownershipChecker.getAwardedDate(badgeId));
 
             if (owned == undefined) {
                 setShimmering(node, true);

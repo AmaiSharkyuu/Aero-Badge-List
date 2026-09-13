@@ -754,6 +754,39 @@
     .abl-container-badge-content {
         overflow: hidden;
         flex: 1;
+        display: flex;
+        flex-direction: column;
+        min-width: 0;
+    }
+
+    /* A long description gives up space first, so the awarded date under it
+       stays visible inside the fixed-height card. */
+    .abl-badge-desc {
+        flex: 0 1 auto;
+        min-height: 0;
+        overflow: hidden;
+    }
+
+    /* Clamped to whole lines when the date is shown, so the description ends
+       on an ellipsis instead of being sliced through the middle of a line. */
+    .abl-has-awarded .abl-badge-desc {
+        display: -webkit-box;
+        -webkit-box-orient: vertical;
+        -webkit-line-clamp: 2;
+    }
+
+    /* 0.85 rather than lower: at 12px this still clears 4.5:1 on the deepest
+       blue of the light-theme gel. */
+    .abl-badge-awarded {
+        flex-shrink: 0;
+        margin: 2px 0 0;
+        font-size: 12px;
+        opacity: 0.85;
+    }
+
+    /* The page's own p { display } rules would otherwise override [hidden]. */
+    .abl-badge-awarded[hidden] {
+        display: none;
     }
 
     .abl-container-stat {
@@ -823,7 +856,7 @@
     }
     
     .abl-badge-hover-label {
-        opacity: 0.75;
+        opacity: 0.85;
     }
 
     .abl-badge-hover-value {
@@ -918,10 +951,18 @@
         function hideBadgeHover() {
           badgeHover.style.display = "none";
         }
+        function setAwardedLine(node, owned, awardedDate) {
+          const line = node.querySelector(".abl-badge-awarded");
+          if (!line) return;
+          const show = owned === true && awardedDate != null;
+          line.hidden = !show;
+          line.textContent = show ? `Awarded ${formatBadgeDate(awardedDate)}` : "";
+          line.parentElement.classList.toggle("abl-has-awarded", show);
+        }
         function createBadgeTemplate(id, value, imageSource, nameTxt, descTxt, awardedTotal, awardedToday, rate, active, owned) {
           const badgeURL = `https://www.roblox.com/badges/${id}/BADGE`;
           const valueName = value == 1 ? "valuable" : value == 2 ? "legacy" : value == 3 ? "nvl" : "free";
-          const item = /* @__PURE__ */ createElement("li", { className: `abl-background abl-container abl-container-badge-item ${!owned ? "abl-unowned" : ""}` }, /* @__PURE__ */ createElement("div", null, /* @__PURE__ */ createElement("a", { href: badgeURL }, /* @__PURE__ */ createElement("img", { src: imageSource, alt: "", className: `abl-badge-icon abl-icon--full ${value > 0 ? `abl-value-border ${valueName}` : ""}` }))), /* @__PURE__ */ createElement("div", { class: "abl-container-badge-content" }, /* @__PURE__ */ createElement("p", { class: "abl-bold-text" }, nameTxt), /* @__PURE__ */ createElement("p", null, descTxt)), /* @__PURE__ */ createElement("ul", { class: "abl-container-badge-stats" }, createStatTemplate("Awarded Total", awardedTotal), createStatTemplate("Awarded Today", awardedToday), createStatTemplate("Rate", Math.round(rate * 1e3) / 10 + "%")));
+          const item = /* @__PURE__ */ createElement("li", { className: `abl-background abl-container abl-container-badge-item ${!owned ? "abl-unowned" : ""}` }, /* @__PURE__ */ createElement("div", null, /* @__PURE__ */ createElement("a", { href: badgeURL }, /* @__PURE__ */ createElement("img", { src: imageSource, alt: "", className: `abl-badge-icon abl-icon--full ${value > 0 ? `abl-value-border ${valueName}` : ""}` }))), /* @__PURE__ */ createElement("div", { class: "abl-container-badge-content" }, /* @__PURE__ */ createElement("p", { class: "abl-bold-text" }, nameTxt), /* @__PURE__ */ createElement("p", { class: "abl-badge-desc" }, descTxt), /* @__PURE__ */ createElement("p", { class: "abl-badge-awarded", hidden: true })), /* @__PURE__ */ createElement("ul", { class: "abl-container-badge-stats" }, createStatTemplate("Awarded Total", awardedTotal), createStatTemplate("Awarded Today", awardedToday), createStatTemplate("Rate", Math.round(rate * 1e3) / 10 + "%")));
           if (owned == void 0) {
             setShimmering(item, true);
           }
@@ -1632,6 +1673,7 @@
             template.addEventListener("mouseleave", hideBadgeHover);
             renderedBadgeNodes.set(badgeId, template);
             template.dataset.owned = ownershipChecker.ownsBadge(badgeId) === true ? "1" : "0";
+            setAwardedLine(template, ownershipChecker.ownsBadge(badgeId), ownershipChecker.getAwardedDate(badgeId));
             const img = template.querySelector("img");
             renderedBadgeImages.set(badge.iconId, img);
             fragment.appendChild(template);
@@ -1645,6 +1687,7 @@
           for (const [badgeId, node] of renderedBadgeNodes) {
             const owned = ownershipChecker.ownsBadge(badgeId);
             const state = owned === true ? "1" : owned === false ? "0" : "-1";
+            setAwardedLine(node, owned, ownershipChecker.getAwardedDate(badgeId));
             if (owned == void 0) {
               setShimmering(node, true);
             } else {
