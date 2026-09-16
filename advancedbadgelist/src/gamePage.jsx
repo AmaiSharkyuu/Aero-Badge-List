@@ -1,4 +1,5 @@
 import { themeVars } from "./themeColors.js";
+import { INDEX_KEY, getSavedIndex, getSavedBadges, saveGame, removeGame, toRow, fromRow, sortedEntries, formatCount, formatAge } from "./savedGames.js";
 
 (async function() {
 
@@ -187,9 +188,12 @@ import { themeVars } from "./themeColors.js";
 
     const placeId = (window.location.href).split("/")[4];
 
-    const universeId = await fetch(`https://games.roblox.com/v1/games/multiget-place-details?placeIds=${placeId}`, {credentials: "include"}).then(async function(response) {
-        return (await response.json())[0].universeId;
+    const placeDetails = await fetch(`https://games.roblox.com/v1/games/multiget-place-details?placeIds=${placeId}`, {credentials: "include"}).then(async function(response) {
+        return (await response.json())[0];
     });
+
+    const universeId = placeDetails.universeId;
+    const gameName = placeDetails.name || document.title;
 
     const mainUserId = await fetch("https://users.roblox.com/v1/users/authenticated", {credentials: "include"}).then(async function(response) {
         return (await response.json()).id;
@@ -806,6 +810,155 @@ import { themeVars } from "./themeColors.js";
         box-shadow: var(--abl-panel-shadow, inset 0 1px 0 rgba(255, 255, 255, 0.35)), 0 4px 14px rgba(0, 0, 0, 0.35);
     }
 
+    .abl-saved-wrap {
+        position: relative;
+    }
+
+    .abl-saved-star {
+        display: inline-block;
+        width: 1em;
+        text-align: center;
+    }
+
+    .abl-saved-star.is-saved {
+        color: #ffd700;
+        text-shadow: 0 0 4px rgba(255, 215, 0, 0.7), 0 1px 1px rgba(0, 0, 0, 0.5);
+    }
+
+    .abl-saved-panel {
+        position: absolute;
+        top: calc(100% + 6px);
+        left: 0;
+        z-index: 20;
+        width: 360px;
+        padding: 12px;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        box-shadow: var(--abl-panel-shadow, inset 0 1px 0 rgba(255, 255, 255, 0.35)), 0 6px 18px rgba(0, 0, 0, 0.35);
+    }
+
+    .abl-saved-panel[hidden] {
+        display: none;
+    }
+
+    .abl-saved-panel p {
+        margin: 0;
+    }
+
+    .abl-saved-section-title {
+        font-size: 11px;
+        font-weight: bold;
+        letter-spacing: 1px;
+        text-transform: uppercase;
+        opacity: 0.85;
+    }
+
+    .abl-saved-current-name {
+        font-size: 15px;
+        font-weight: bold;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .abl-saved-meta {
+        font-size: 12px;
+        opacity: 0.85;
+    }
+
+    .abl-saved-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+    }
+
+    .abl-saved-actions:empty {
+        display: none;
+    }
+
+    .abl-button-small {
+        padding: 3px 10px;
+        font-size: 12px;
+    }
+
+    .abl-button[disabled] {
+        filter: grayscale(0.6);
+        opacity: 0.6;
+        cursor: default;
+    }
+
+    .abl-saved-divider {
+        height: 1px;
+        background-color: var(--abl-panel-border, rgba(150, 215, 255, 0.45));
+    }
+
+    .abl-saved-list {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+        max-height: 230px;
+        overflow-y: auto;
+        margin: 0;
+        padding: 0;
+        list-style: none;
+    }
+
+    .abl-saved-item {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 4px 6px;
+    }
+
+    .abl-saved-item:hover {
+        background-color: var(--abl-ghost-hover, rgba(120, 200, 255, 0.12));
+    }
+
+    .abl-saved-item.is-current {
+        box-shadow: inset 3px 0 0 var(--abl-btn-top, hsl(200, 95%, 62%));
+    }
+
+    .abl-saved-item-text {
+        flex: 1;
+        min-width: 0;
+        display: flex;
+        flex-direction: column;
+    }
+
+    .abl-saved-item-name {
+        color: inherit !important;
+        font-weight: bold;
+        font-size: 13px;
+        text-decoration: none !important;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .abl-saved-item-name:hover {
+        text-decoration: underline !important;
+    }
+
+    /* 0.9 here rather than the 0.85 used elsewhere: the list sits in the
+       lower, deeper-blue part of the light panel. */
+    .abl-saved-item-meta {
+        font-size: 12px;
+        opacity: 0.9;
+    }
+
+    .abl-saved-remove {
+        flex-shrink: 0;
+        width: 22px;
+        height: 22px;
+    }
+
+    .abl-saved-hint {
+        margin: 0;
+        font-size: 12px;
+        opacity: 0.85;
+    }
+
     .abl-badge-hover-row {
         display: flex;
         justify-content: space-between;
@@ -845,6 +998,23 @@ import { themeVars } from "./themeColors.js";
                 <div class="abl-container abl-row" id="abl-header-container">
                     <h2>Badges</h2>
                     <button class="abl-background abl-button" id="abl-load">Load</button>
+                    <div class="abl-saved-wrap">
+                        <button class="abl-background abl-button" id="abl-savedToggle" aria-haspopup="true" aria-expanded="false">
+                            <span class="abl-saved-star" id="abl-savedStar">☆</span> Saved Games
+                        </button>
+                        <div class="abl-background abl-saved-panel" id="abl-savedPanel" hidden={true}>
+                            <p class="abl-saved-section-title">This game</p>
+                            <div class="abl-saved-current">
+                                <p class="abl-saved-current-name" id="abl-savedCurrentName"></p>
+                                <p class="abl-saved-meta" id="abl-savedCurrentMeta"></p>
+                            </div>
+                            <div class="abl-saved-actions" id="abl-savedActions"></div>
+                            <div class="abl-saved-divider"></div>
+                            <p class="abl-saved-section-title" id="abl-savedListTitle">Saved games</p>
+                            <ul class="abl-saved-list" id="abl-savedList"></ul>
+                        </div>
+                    </div>
+                    <p class="abl-saved-hint" id="abl-savedHint"></p>
                 </div>
 
                 <div class="abl-container abl-row" id="abl-ownership-container">
@@ -1178,14 +1348,28 @@ import { themeVars } from "./themeColors.js";
     class BadgeIconManager {
         constructor() {
             this.iconImageURLs = new Map();
+            this.requested = new Set();
         }
 
         getIconURL(iconId) {
             return this.iconImageURLs.get(iconId);
         }
 
+        // Skips icons already fetched or in flight: a list restored from a save
+        // fetches icons page by page as they're shown, which can overlap with the
+        // batches a normal load requests.
         async processBatch(iconIds) {
-            const response = await fetchAssetThumbnails(iconIds);
+            const toFetch = iconIds.filter(id => id != null && !this.requested.has(id));
+
+            if (toFetch.length == 0) {
+                return [];
+            }
+
+            for (const id of toFetch) {
+                this.requested.add(id);
+            }
+
+            const response = await fetchAssetThumbnails(toFetch);
 
             for (const thumbnail of response) {
                 this.iconImageURLs.set(thumbnail.targetId, thumbnail.imageUrl);
@@ -1240,29 +1424,42 @@ import { themeVars } from "./themeColors.js";
             let result = new Map();
 
             for (const badge of response.data) {
-                this.list.push(badge.id);
-
-                const info = {
-                    enabled: badge.enabled,
-                    name: badge.name,
-                    desc: badge.description || "",
-                    created: badge.created,
-                    updated: badge.updated,
-                    value: this.valueChecker.nextBadge(badge.id, badge.created),
-                    count: badge.statistics.awardedCount,
-                    countToday: badge.statistics.pastDayAwardedCount,
-                    rate: badge.statistics.winRatePercentage,
-                    iconId: badge.iconImageId
-                };
-
-                this.badgeInfo.set(badge.id, info);
-                result.set(badge.id, info);
+                result.set(badge.id, this.addBadge(badge.id, infoFromApi(badge)));
             }
 
             this.currentCursor = response.nextPageCursor;
 
             return result;
         }
+
+        // Badges must be added oldest first: the value checker counts how many
+        // badges share a creation day, so order changes the result.
+        addBadge(id, info) {
+            info.value = this.valueChecker.nextBadge(id, info.created);
+
+            this.list.push(id);
+            this.badgeInfo.set(id, info);
+
+            return info;
+        }
+
+        markFinished() {
+            this.currentCursor = null;
+        }
+    }
+
+    function infoFromApi(badge) {
+        return {
+            enabled: badge.enabled,
+            name: badge.name,
+            desc: badge.description || "",
+            created: badge.created,
+            updated: badge.updated,
+            count: badge.statistics.awardedCount,
+            countToday: badge.statistics.pastDayAwardedCount,
+            rate: badge.statistics.winRatePercentage,
+            iconId: badge.iconImageId
+        };
     }
 
     function sortBadgeListArray(array, badgeList, keyName, sortDirection) {
@@ -2002,7 +2199,19 @@ import { themeVars } from "./themeColors.js";
             fragment.appendChild(template);
         };
         badgeListPage.replaceChildren(fragment);
-        
+
+        const missingIcons = [];
+
+        for (const iconId of renderedBadgeImages.keys()) {
+            if (!badgeIconManager.getIconURL(iconId)) {
+                missingIcons.push(iconId);
+            }
+        }
+
+        if (missingIcons.length > 0) {
+            badgeIconManager.processBatch(missingIcons).then(updateVisibleIcons);
+        }
+
         refreshListStatus();
     }
 
@@ -2133,7 +2342,366 @@ import { themeVars } from "./themeColors.js";
 
     ownershipCheckerLoop();
 
-    async function load() {
+    // Saved games
+
+    const savedToggle = ABLContainer.querySelector("#abl-savedToggle");
+    const savedStar = ABLContainer.querySelector("#abl-savedStar");
+    const savedPanel = ABLContainer.querySelector("#abl-savedPanel");
+    const savedCurrentName = ABLContainer.querySelector("#abl-savedCurrentName");
+    const savedCurrentMeta = ABLContainer.querySelector("#abl-savedCurrentMeta");
+    const savedActions = ABLContainer.querySelector("#abl-savedActions");
+    const savedListTitle = ABLContainer.querySelector("#abl-savedListTitle");
+    const savedList = ABLContainer.querySelector("#abl-savedList");
+    const savedHint = ABLContainer.querySelector("#abl-savedHint");
+
+    let savedIndex = await getSavedIndex();
+
+    // idle | saving | checking | recounting
+    let saveState = "idle";
+    let saveError = "";
+    let pendingSave = false;
+    let recountProgress = 0;
+
+    // Most new-badge checks stop on the first page. Past this many pages it's
+    // quicker and safer to ask for a full recount.
+    const MAX_NEW_BADGE_PAGES = 50;
+
+    function currentSave() {
+        return savedIndex[universeId];
+    }
+
+    function setSavedHint(text) {
+        savedHint.textContent = text;
+    }
+
+    async function persistBadges(list) {
+        saveState = "saving";
+        renderSavedPanel();
+
+        try {
+            const rows = list.list.map(id => toRow(id, list.getBadgeInfo(id)));
+            // The API's placeId, not the one cut out of the URL, which can
+            // carry a query string (private server links, for instance).
+            await saveGame(universeId, { name: gameName, placeId: placeDetails.placeId || placeId }, rows);
+            savedIndex = await getSavedIndex();
+            saveError = "";
+        } catch (error) {
+            saveError = `Couldn't save: ${error.message}`;
+        }
+
+        saveState = "idle";
+        renderSavedPanel();
+    }
+
+    function restoreFromSave(rows) {
+        for (const row of rows) {
+            const { id, info } = fromRow(row);
+
+            if (!badgeList.getBadgeInfo(id)) {
+                badgeList.addBadge(id, info);
+            }
+        }
+
+        badgeList.markFinished();
+    }
+
+    // Unlike retry(), this gives up: a failed check just leaves the saved list
+    // as it is instead of hanging the page on a request that won't succeed.
+    async function fetchJsonWithRetries(url, attempts) {
+        for (let attempt = 1; attempt <= attempts; attempt++) {
+            try {
+                const response = await fetch(url);
+
+                if (response.ok) {
+                    const json = await response.json();
+
+                    if (!json.errors) {
+                        return json;
+                    }
+                }
+            } catch (error) {
+                // Network error: fall through to the wait and try again.
+            }
+
+            await wait(1500 * attempt);
+        }
+
+        return null;
+    }
+
+    // Walks the badges newest first and stops at the first one already known,
+    // so a game with no new badges costs a single request. Returns null when
+    // the check couldn't be completed.
+    async function fetchBadgesNewerThan(knownIds) {
+        const found = [];
+        let cursor = "";
+
+        for (let page = 0; page < MAX_NEW_BADGE_PAGES; page++) {
+            const url = `https://badges.roblox.com/v1/universes/${universeId}/badges?limit=100&sortBy=DateCreated&sortOrder=Desc&cursor=${cursor}`;
+            const json = await fetchJsonWithRetries(url, 3);
+
+            if (!json || !Array.isArray(json.data)) {
+                return null;
+            }
+
+            for (const badge of json.data) {
+                if (knownIds.has(badge.id)) {
+                    return found;
+                }
+
+                found.push(badge);
+            }
+
+            if (!json.nextPageCursor) {
+                return found;
+            }
+
+            cursor = json.nextPageCursor;
+        }
+
+        return null;
+    }
+
+    function onBadgesAdded() {
+        badgeList.refilterBadgeList();
+        refreshOwnershipStatus();
+        awakenOwnershipChecker.emit();
+    }
+
+    async function checkForNewBadges() {
+        saveState = "checking";
+        renderSavedPanel();
+
+        const newest = await fetchBadgesNewerThan(new Set(badgeList.list));
+
+        saveState = "idle";
+
+        if (newest == null) {
+            setSavedHint("Loaded from save · couldn't check for new badges, try Recount");
+            renderSavedPanel();
+            return;
+        }
+
+        if (newest.length == 0) {
+            setSavedHint("Loaded from save · up to date");
+            renderSavedPanel();
+            return;
+        }
+
+        // Oldest first, so the value checker sees them in creation order.
+        newest.reverse();
+
+        for (const badge of newest) {
+            badgeList.addBadge(badge.id, infoFromApi(badge));
+        }
+
+        onBadgesAdded();
+
+        setSavedHint(`Loaded from save · ${formatCount(newest.length)} new badge${newest.length == 1 ? "" : "s"} added`);
+        await persistBadges(badgeList);
+    }
+
+    // Updates the badges already on screen in place rather than rebuilding the
+    // list, since the ownership checkers hold on to the same array. A badge
+    // deleted from the game stays visible until the page is reloaded, but the
+    // save itself is written from the fresh list, so it's gone from there.
+    function mergeFreshList(fresh) {
+        let added = 0;
+
+        for (const id of fresh.list) {
+            const info = fresh.getBadgeInfo(id);
+            const existing = badgeList.getBadgeInfo(id);
+
+            if (existing) {
+                Object.assign(existing, info);
+            } else {
+                badgeList.list.push(id);
+                badgeList.badgeInfo.set(id, info);
+                added++;
+            }
+        }
+
+        return added;
+    }
+
+    async function recountSavedGame() {
+        if (saveState != "idle") {
+            return;
+        }
+
+        if (!loaded) {
+            await load({ useSave: false, saveAfter: true });
+            return;
+        }
+
+        if (!badgeList.isFinished()) {
+            // Already counting from scratch; it will be saved when it finishes.
+            pendingSave = true;
+            renderSavedPanel();
+            return;
+        }
+
+        saveState = "recounting";
+        recountProgress = 0;
+        renderSavedPanel();
+
+        const fresh = new BadgeList(universeId);
+
+        while (!fresh.isFinished()) {
+            await fresh.next();
+            recountProgress = fresh.list.length;
+            renderSavedPanel();
+        }
+
+        const added = mergeFreshList(fresh);
+        onBadgesAdded();
+
+        setSavedHint(added > 0 ? `Recounted · ${formatCount(added)} new badge${added == 1 ? "" : "s"}` : "Recounted · stats updated");
+
+        saveState = "idle";
+        await persistBadges(fresh);
+    }
+
+    async function saveCurrentGame() {
+        if (loaded && badgeList.isFinished()) {
+            await persistBadges(badgeList);
+            setSavedHint("Saved");
+            return;
+        }
+
+        pendingSave = true;
+        renderSavedPanel();
+
+        if (!loaded) {
+            await load();
+        }
+    }
+
+    async function removeSavedGame(id) {
+        if (String(id) == String(universeId)) {
+            pendingSave = false;
+            setSavedHint("");
+        }
+
+        await removeGame(id);
+        savedIndex = await getSavedIndex();
+        renderSavedPanel();
+    }
+
+    function createPanelButton(text, onClick, disabled, title) {
+        const button = <button class="abl-background abl-button abl-button-small" type="button">{text}</button>;
+
+        button.disabled = Boolean(disabled);
+
+        if (title) {
+            button.title = title;
+        }
+
+        button.onclick = onClick;
+
+        return button;
+    }
+
+    function currentSaveDescription(save) {
+        if (saveError) return saveError;
+        if (saveState == "recounting") return `Recounting: ${formatCount(recountProgress)} badges so far`;
+        if (saveState == "checking") return "Checking for new badges";
+        if (saveState == "saving") return "Saving";
+        if (pendingSave) return `Will be saved once the count finishes (${formatCount(badgeList.list.length)} so far)`;
+        if (save) return `${formatCount(save.count)} badges, saved ${formatAge(save.savedAt)}`;
+
+        return "Not saved. Saving it makes this game load instantly next time.";
+    }
+
+    function renderSavedList() {
+        const entries = sortedEntries(savedIndex);
+
+        savedListTitle.textContent = entries.length > 0 ? `Saved games (${entries.length})` : "Saved games";
+
+        if (entries.length == 0) {
+            savedList.replaceChildren(<li class="abl-saved-meta">No saved games yet.</li>);
+            return;
+        }
+
+        savedList.replaceChildren(...entries.map(function([id, entry]) {
+            const isCurrent = String(id) == String(universeId);
+
+            const removeButton = <button class="abl-ghost-button abl-centered abl-saved-remove" type="button" title="Remove from saved games">{SVG(crossSVG, "var(--color-content-default)", 14)}</button>;
+
+            removeButton.disabled = isCurrent && saveState != "idle";
+            removeButton.onclick = function() {
+                removeSavedGame(id);
+            };
+
+            return (
+                <li class={`abl-saved-item ${isCurrent ? "is-current" : ""}`}>
+                    <div class="abl-saved-item-text">
+                        <a class="abl-saved-item-name" href={`https://www.roblox.com/games/${entry.placeId}`} title={entry.name}>{entry.name}</a>
+                        <span class="abl-saved-item-meta">{`${formatCount(entry.count)} badges · ${formatAge(entry.savedAt)}`}</span>
+                    </div>
+                    {removeButton}
+                </li>
+            );
+        }));
+    }
+
+    function renderSavedPanel() {
+        const save = currentSave();
+        const busy = saveState != "idle";
+
+        savedStar.textContent = save ? "★" : "☆";
+        savedStar.classList.toggle("is-saved", Boolean(save));
+
+        if (!loaded) {
+            loadButton.textContent = save ? "Load from save" : "Load";
+        }
+
+        savedCurrentName.textContent = gameName;
+        savedCurrentName.title = gameName;
+        savedCurrentMeta.textContent = currentSaveDescription(save);
+
+        if (save) {
+            savedActions.replaceChildren(
+                createPanelButton("Recount", recountSavedGame, busy || pendingSave, "Fetch every badge again to refresh the stats"),
+                createPanelButton("Remove", function() { removeSavedGame(universeId); }, busy)
+            );
+        } else {
+            savedActions.replaceChildren(
+                createPanelButton(pendingSave ? "Saving when done" : "★ Save this game", saveCurrentGame, busy || pendingSave)
+            );
+        }
+
+        renderSavedList();
+    }
+
+    function setSavedPanelOpen(open) {
+        savedPanel.hidden = !open;
+        savedToggle.setAttribute("aria-expanded", open ? "true" : "false");
+
+        if (open) {
+            renderSavedPanel();
+        }
+    }
+
+    savedToggle.onclick = function() {
+        setSavedPanelOpen(savedPanel.hidden);
+    };
+
+    document.addEventListener("keydown", function(event) {
+        if (event.key == "Escape" && !savedPanel.hidden) {
+            setSavedPanelOpen(false);
+        }
+    });
+
+    // Another tab, or the settings page, may add or remove saved games.
+    chrome.storage.onChanged.addListener(function(changes, area) {
+        if (area == "local" && changes[INDEX_KEY]) {
+            savedIndex = changes[INDEX_KEY].newValue || {};
+            renderSavedPanel();
+        }
+    });
+
+    async function load(options = {}) {
         if (loaded) {
             return;
         }
@@ -2143,6 +2711,23 @@ import { themeVars } from "./themeColors.js";
         loadButton.remove();
 
         refreshOwnershipStatus();
+
+        const rows = options.useSave !== false && currentSave() ? await getSavedBadges(universeId) : null;
+
+        if (rows && rows.length > 0) {
+            restoreFromSave(rows);
+            onBadgesAdded();
+            renderSavedPanel();
+
+            await checkForNewBadges();
+            return;
+        }
+
+        if (options.saveAfter) {
+            pendingSave = true;
+        }
+
+        renderSavedPanel();
 
         while (!badgeList.isFinished()) {
             const response = await badgeList.next();
@@ -2159,9 +2744,21 @@ import { themeVars } from "./themeColors.js";
             badgeIconManager.processBatch(iconIds).then(updateVisibleIcons);
 
             awakenOwnershipChecker.emit();
+
+            if (pendingSave) {
+                renderSavedPanel();
+            }
         }
 
         awakenOwnershipChecker.emit();
+
+        // Also covers a saved game whose badge data went missing: it gets
+        // rewritten from this full count.
+        if (pendingSave || currentSave()) {
+            pendingSave = false;
+            await persistBadges(badgeList);
+            setSavedHint("Counted and saved");
+        }
     }
 
     OwnershipChecker.onProcessed.subscribe(function() {
@@ -2192,7 +2789,11 @@ import { themeVars } from "./themeColors.js";
 
     requestAnimationFrame(onUpdate);
 
-    loadButton.onclick = load;
+    loadButton.onclick = function() {
+        load();
+    };
+
+    renderSavedPanel();
 
     nextPageBtn.onclick = function() {
         switchPage(currentPage + 1);
@@ -2241,6 +2842,14 @@ import { themeVars } from "./themeColors.js";
     document.onclick = function(event) {
         if (event.target != ownerEditDropdown && !ownerEditDropdown.contains(event.target) && event.target != ownerEditBtn && !ownerEditBtn.contains(event.target)) {
             closeOwnerEditDropdown();
+        }
+
+        // composedPath is captured when the click happens: the panel re-renders
+        // its buttons on click, so event.target may already be detached here.
+        const path = event.composedPath();
+
+        if (!savedPanel.hidden && !path.includes(savedPanel) && !path.includes(savedToggle)) {
+            setSavedPanelOpen(false);
         }
     }
 

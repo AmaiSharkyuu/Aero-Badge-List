@@ -1,4 +1,5 @@
 import { themeVars, normalizeTheme, PRESETS } from "./themeColors.js";
+import { INDEX_KEY, getSavedIndex, removeGame, removeAllGames, sortedEntries, formatCount, formatAge, formatBytes } from "./savedGames.js";
 
 (async function() {
     function createElement(tag, props, ...children) {
@@ -62,7 +63,9 @@ import { themeVars, normalizeTheme, PRESETS } from "./themeColors.js";
     #abl-export-keys,
     #abl-import-keys,
     .abl-add-key,
-    .abl-remove-key {
+    .abl-remove-key,
+    #abl-saved-remove-all,
+    .abl-saved-row-remove {
         border-radius: 0 !important;
         background: linear-gradient(to bottom, rgba(255, 255, 255, 0.5) 0%, rgba(255, 255, 255, 0.1) 14%, rgba(255, 255, 255, 0) 50%), linear-gradient(to bottom, #3fc6ff 0%, #0d6fa8 55%, #073757 100%) !important;
         border: 1px solid rgba(210, 245, 255, 0.7) !important;
@@ -74,8 +77,49 @@ import { themeVars, normalizeTheme, PRESETS } from "./themeColors.js";
     #abl-export-keys:hover,
     #abl-import-keys:hover,
     .abl-add-key:hover,
-    .abl-remove-key:hover {
+    .abl-remove-key:hover,
+    #abl-saved-remove-all:hover,
+    .abl-saved-row-remove:hover {
         filter: brightness(1.12);
+    }
+
+    #abl-saved-remove-all[disabled] {
+        opacity: 0.5;
+        filter: grayscale(0.6);
+    }
+
+    .abl-saved-row {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 10px 0;
+        border-bottom: 1px solid rgba(128, 128, 128, 0.25);
+    }
+
+    .abl-saved-row-text {
+        flex: 1;
+        min-width: 0;
+    }
+
+    .abl-saved-row-name {
+        display: block;
+        color: inherit !important;
+        font-size: 16px;
+        font-weight: bold;
+        text-decoration: none !important;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .abl-saved-row-name:hover {
+        text-decoration: underline !important;
+    }
+
+    .abl-saved-row-meta {
+        margin: 0;
+        font-size: 13px;
+        opacity: 0.85;
     }
 
     .abl-theme-btn {
@@ -147,6 +191,10 @@ import { themeVars, normalizeTheme, PRESETS } from "./themeColors.js";
         "abl-theme": {
             href: "?abl=theme",
             render: () => renderAblTab("abl-theme")
+        },
+        "abl-saved-games": {
+            href: "?abl=saved-games",
+            render: () => renderAblTab("abl-saved-games")
         },
         "abl-back": {
             href: "https://www.roblox.com/my/account#!/info",
@@ -401,6 +449,53 @@ import { themeVars, normalizeTheme, PRESETS } from "./themeColors.js";
         });
     }
 
+    async function renderSavedGamesList() {
+        const list = document.getElementById("abl-saved-games-list");
+        const summary = document.getElementById("abl-saved-summary");
+        const removeAll = document.getElementById("abl-saved-remove-all");
+
+        if (!list) return;
+
+        const entries = sortedEntries(await getSavedIndex());
+
+        // The tab may have been switched away while the index was loading.
+        if (!list.isConnected) return;
+
+        const totalBytes = entries.reduce((sum, [, entry]) => sum + (entry.bytes || 0), 0);
+
+        summary.textContent = entries.length == 0
+            ? "No saved games yet."
+            : `${entries.length} saved game${entries.length == 1 ? "" : "s"}, ${formatBytes(totalBytes)} in total`;
+
+        removeAll.disabled = entries.length == 0;
+
+        list.replaceChildren(...entries.map(([universeId, entry]) => {
+            const row = (
+                <div className="abl-saved-row">
+                    <div className="abl-saved-row-text">
+                        <a className="abl-saved-row-name" href={`https://www.roblox.com/games/${entry.placeId}`} title={entry.name}>{entry.name}</a>
+                        <p className="abl-saved-row-meta">{`${formatCount(entry.count)} badges · saved ${formatAge(entry.savedAt)} · ${formatBytes(entry.bytes)}`}</p>
+                    </div>
+                    <button className="btn-control-sm abl-saved-row-remove" type="button">Remove</button>
+                </div>
+            );
+
+            row.querySelector(".abl-saved-row-remove").addEventListener("click", async () => {
+                await removeGame(universeId);
+                renderSavedGamesList();
+            });
+
+            return row;
+        }));
+    }
+
+    // Games saved or removed from a game page while this tab is open.
+    chrome.storage.onChanged.addListener((changes, area) => {
+        if (area == "local" && changes[INDEX_KEY]) {
+            renderSavedGamesList();
+        }
+    });
+
     async function renderAblTab(id) {
         if (id === "abl-cloud-keys") {
             tabContent.replaceChildren(
@@ -443,6 +538,31 @@ import { themeVars, normalizeTheme, PRESETS } from "./themeColors.js";
 
             tabContent.appendChild(cloudKeyInstructions);
             tabContent.appendChild(cloudkeySettingsTab);
+        }
+
+        if (id === "abl-saved-games") {
+            tabContent.replaceChildren(
+                <div className="section">
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
+                        <h3 style={{ margin: "0" }}>Saved Games</h3>
+                        <button className="btn-control-sm" type="button" id="abl-saved-remove-all">Remove all</button>
+                    </div>
+                    <p className="font-caption-body" style={{ opacity: "0.85", marginBottom: "12px" }}>
+                        A saved game keeps its badge list on this computer, so it loads instantly instead of being counted from zero. Only new badges are fetched on the next visit. Save a game from the Saved Games menu on its page.
+                    </p>
+                    <p className="font-caption-header" id="abl-saved-summary" style={{ marginBottom: "4px" }}></p>
+                    <div id="abl-saved-games-list"></div>
+                </div>
+            );
+
+            document.getElementById("abl-saved-remove-all").addEventListener("click", async () => {
+                if (confirm("Remove every saved game? Their badges will be counted from zero next time.")) {
+                    await removeAllGames();
+                    renderSavedGamesList();
+                }
+            });
+
+            renderSavedGamesList();
         }
 
         if (id === "abl-theme") {
@@ -553,9 +673,10 @@ import { themeVars, normalizeTheme, PRESETS } from "./themeColors.js";
         const generalSettings = makeOption("abl-general-settings", "General Settings", ABL_TABS["abl-general-settings"].href);
         const cloudKeys = makeOption("abl-cloud-keys", "Cloud Keys", ABL_TABS["abl-cloud-keys"].href);
         const theme = makeOption("abl-theme", "Theme", ABL_TABS["abl-theme"].href);
+        const savedGames = makeOption("abl-saved-games", "Saved Games", ABL_TABS["abl-saved-games"].href);
         const returnBtn = makeOption("abl-back", "Return", ABL_TABS["abl-back"].href);
 
-        menu.append(generalSettings, cloudKeys, theme, returnBtn);
+        menu.append(generalSettings, cloudKeys, theme, savedGames, returnBtn);
 
         const key = new URLSearchParams(location.search).get("abl") || "general-settings";
         const tab = menu.querySelector(`#abl-${key}`) || generalSettings;

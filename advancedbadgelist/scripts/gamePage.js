@@ -118,10 +118,122 @@
     }
   });
 
+  // src/savedGames.js
+  function badgesKey(universeId) {
+    return BADGES_PREFIX + universeId;
+  }
+  function storageGet(key) {
+    return new Promise((resolve) => {
+      chrome.storage.local.get(key, (res) => resolve(res ? res[key] : void 0));
+    });
+  }
+  function storageSet(items) {
+    return new Promise((resolve, reject) => {
+      chrome.storage.local.set(items, () => {
+        const error = chrome.runtime.lastError;
+        error ? reject(new Error(error.message)) : resolve();
+      });
+    });
+  }
+  function storageRemove(keys) {
+    return new Promise((resolve) => {
+      chrome.storage.local.remove(keys, resolve);
+    });
+  }
+  async function getSavedIndex() {
+    const index = await storageGet(INDEX_KEY);
+    return index && typeof index === "object" ? index : {};
+  }
+  function toRow(id, info) {
+    return [
+      id,
+      info.enabled ? 1 : 0,
+      info.name,
+      info.desc,
+      info.created,
+      info.updated,
+      info.count,
+      info.countToday,
+      info.rate,
+      info.iconId
+    ];
+  }
+  function fromRow(row) {
+    return {
+      id: row[0],
+      info: {
+        enabled: row[1] === 1,
+        name: row[2],
+        desc: row[3],
+        created: row[4],
+        updated: row[5],
+        count: row[6],
+        countToday: row[7],
+        rate: row[8],
+        iconId: row[9]
+      }
+    };
+  }
+  async function getSavedBadges(universeId) {
+    const data = await storageGet(badgesKey(universeId));
+    if (!data || data.version !== FORMAT_VERSION || !Array.isArray(data.rows)) {
+      return null;
+    }
+    return data.rows;
+  }
+  async function saveGame(universeId, meta, rows) {
+    const payload = { version: FORMAT_VERSION, rows };
+    const entry = {
+      name: meta.name,
+      placeId: meta.placeId,
+      count: rows.length,
+      savedAt: Date.now(),
+      // getBytesInUse isn't available on every browser we support, so the
+      // size shown in the menus is measured here instead.
+      bytes: JSON.stringify(payload).length
+    };
+    await storageSet({ [badgesKey(universeId)]: payload });
+    const index = await getSavedIndex();
+    index[universeId] = entry;
+    await storageSet({ [INDEX_KEY]: index });
+    return entry;
+  }
+  async function removeGame(universeId) {
+    const index = await getSavedIndex();
+    delete index[universeId];
+    await storageSet({ [INDEX_KEY]: index });
+    await storageRemove(badgesKey(universeId));
+  }
+  function sortedEntries(index) {
+    return Object.entries(index).sort((a, b) => (b[1].savedAt || 0) - (a[1].savedAt || 0));
+  }
+  function formatCount(n) {
+    return Number(n || 0).toLocaleString("en-US");
+  }
+  function formatAge(timestamp, now = Date.now()) {
+    const seconds = Math.max(0, Math.round((now - timestamp) / 1e3));
+    if (seconds < 60) return "just now";
+    const minutes = Math.round(seconds / 60);
+    if (minutes < 60) return `${minutes} min ago`;
+    const hours = Math.round(minutes / 60);
+    if (hours < 24) return `${hours} h ago`;
+    const days = Math.round(hours / 24);
+    return days === 1 ? "1 day ago" : `${days} days ago`;
+  }
+  var INDEX_KEY, BADGES_PREFIX, FORMAT_VERSION;
+  var init_savedGames = __esm({
+    "src/savedGames.js"() {
+      INDEX_KEY = "ablSavedGames";
+      BADGES_PREFIX = "ablSavedBadges:";
+      FORMAT_VERSION = 1;
+    }
+  });
+
   // src/gamePage.jsx
   var require_gamePage = __commonJS({
     "src/gamePage.jsx"() {
       init_themeColors();
+      init_savedGames();
       (async function() {
         function createElement(tag, props, ...children) {
           const el = document.createElement(tag);
@@ -264,9 +376,11 @@
         });
         const NVL_set = new Set(NVL_list);
         const placeId = window.location.href.split("/")[4];
-        const universeId = await fetch(`https://games.roblox.com/v1/games/multiget-place-details?placeIds=${placeId}`, { credentials: "include" }).then(async function(response) {
-          return (await response.json())[0].universeId;
+        const placeDetails = await fetch(`https://games.roblox.com/v1/games/multiget-place-details?placeIds=${placeId}`, { credentials: "include" }).then(async function(response) {
+          return (await response.json())[0];
         });
+        const universeId = placeDetails.universeId;
+        const gameName = placeDetails.name || document.title;
         const mainUserId = await fetch("https://users.roblox.com/v1/users/authenticated", { credentials: "include" }).then(async function(response) {
           return (await response.json()).id;
         });
@@ -844,6 +958,155 @@
         box-shadow: var(--abl-panel-shadow, inset 0 1px 0 rgba(255, 255, 255, 0.35)), 0 4px 14px rgba(0, 0, 0, 0.35);
     }
 
+    .abl-saved-wrap {
+        position: relative;
+    }
+
+    .abl-saved-star {
+        display: inline-block;
+        width: 1em;
+        text-align: center;
+    }
+
+    .abl-saved-star.is-saved {
+        color: #ffd700;
+        text-shadow: 0 0 4px rgba(255, 215, 0, 0.7), 0 1px 1px rgba(0, 0, 0, 0.5);
+    }
+
+    .abl-saved-panel {
+        position: absolute;
+        top: calc(100% + 6px);
+        left: 0;
+        z-index: 20;
+        width: 360px;
+        padding: 12px;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        box-shadow: var(--abl-panel-shadow, inset 0 1px 0 rgba(255, 255, 255, 0.35)), 0 6px 18px rgba(0, 0, 0, 0.35);
+    }
+
+    .abl-saved-panel[hidden] {
+        display: none;
+    }
+
+    .abl-saved-panel p {
+        margin: 0;
+    }
+
+    .abl-saved-section-title {
+        font-size: 11px;
+        font-weight: bold;
+        letter-spacing: 1px;
+        text-transform: uppercase;
+        opacity: 0.85;
+    }
+
+    .abl-saved-current-name {
+        font-size: 15px;
+        font-weight: bold;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .abl-saved-meta {
+        font-size: 12px;
+        opacity: 0.85;
+    }
+
+    .abl-saved-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+    }
+
+    .abl-saved-actions:empty {
+        display: none;
+    }
+
+    .abl-button-small {
+        padding: 3px 10px;
+        font-size: 12px;
+    }
+
+    .abl-button[disabled] {
+        filter: grayscale(0.6);
+        opacity: 0.6;
+        cursor: default;
+    }
+
+    .abl-saved-divider {
+        height: 1px;
+        background-color: var(--abl-panel-border, rgba(150, 215, 255, 0.45));
+    }
+
+    .abl-saved-list {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+        max-height: 230px;
+        overflow-y: auto;
+        margin: 0;
+        padding: 0;
+        list-style: none;
+    }
+
+    .abl-saved-item {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 4px 6px;
+    }
+
+    .abl-saved-item:hover {
+        background-color: var(--abl-ghost-hover, rgba(120, 200, 255, 0.12));
+    }
+
+    .abl-saved-item.is-current {
+        box-shadow: inset 3px 0 0 var(--abl-btn-top, hsl(200, 95%, 62%));
+    }
+
+    .abl-saved-item-text {
+        flex: 1;
+        min-width: 0;
+        display: flex;
+        flex-direction: column;
+    }
+
+    .abl-saved-item-name {
+        color: inherit !important;
+        font-weight: bold;
+        font-size: 13px;
+        text-decoration: none !important;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .abl-saved-item-name:hover {
+        text-decoration: underline !important;
+    }
+
+    /* 0.9 here rather than the 0.85 used elsewhere: the list sits in the
+       lower, deeper-blue part of the light panel. */
+    .abl-saved-item-meta {
+        font-size: 12px;
+        opacity: 0.9;
+    }
+
+    .abl-saved-remove {
+        flex-shrink: 0;
+        width: 22px;
+        height: 22px;
+    }
+
+    .abl-saved-hint {
+        margin: 0;
+        font-size: 12px;
+        opacity: 0.85;
+    }
+
     .abl-badge-hover-row {
         display: flex;
         justify-content: space-between;
@@ -869,7 +1132,7 @@
           return /* @__PURE__ */ createElement("select", { class: "abl-background abl-pad-sm", id }, dropdownGroup.options.map((item, index) => /* @__PURE__ */ createElement("option", { key: index, value: item, class: "abl-dropdown-option" }, item)));
         }
         function createBadgeListUI() {
-          return /* @__PURE__ */ createElement("div", { class: "abl-container abl-column" }, /* @__PURE__ */ createElement("div", { class: "abl-container abl-row", id: "abl-header-container" }, /* @__PURE__ */ createElement("h2", null, "Badges"), /* @__PURE__ */ createElement("button", { class: "abl-background abl-button", id: "abl-load" }, "Load")), /* @__PURE__ */ createElement("div", { class: "abl-container abl-row", id: "abl-ownership-container" }, /* @__PURE__ */ createElement("img", { src: "", alt: "", class: "abl-icon abl-icon--lg", id: "abl-viewing-img" }), /* @__PURE__ */ createElement("p", { id: "abl-viewing-user" }, "Username"), /* @__PURE__ */ createElement("div", null, /* @__PURE__ */ createElement("button", { id: "abl-ownerEditBtn", class: "abl-ghost-button abl-centered abl-icon--md" }, SVG(editSVG, "var(--color-content-default)", 24)), /* @__PURE__ */ createElement("div", { class: "abl-background abl-container-list abl-big-dropdown abl-gap-sm", id: "abl-ownerEditDropdown", style: "display: none;" }, /* @__PURE__ */ createElement("input", { type: "text", id: "abl-ownerEditDropdownSearch", class: "abl-background abl-pad-sm", placeholder: "Add username" }), /* @__PURE__ */ createElement("div", { id: "abl-ownerEditDropdownList", class: "abl-container abl-column abl-gap-sm" }))), /* @__PURE__ */ createElement("button", { id: "abl-ownerRefreshBtn", class: "abl-ghost-button abl-centered abl-icon--md" }, SVG(refreshSVG, "var(--color-content-default)", 24)), /* @__PURE__ */ createElement("p", { id: "abl-ownedRemaining" }), /* @__PURE__ */ createElement("p", { class: "", id: "abl-cloudKeyWarning", style: "display: none;" }, "\u26A0 Add a Cloud Key in ABL Settings to fetch more badges at once.")), /* @__PURE__ */ createElement("div", { class: "abl-container abl-column", id: "abl-filters-container" }, /* @__PURE__ */ createElement("h4", { id: "abl-filters-title" }, "Filters"), /* @__PURE__ */ createElement("div", { class: "abl-container" }, /* @__PURE__ */ createElement("div", { id: "abl-filter-options-list", class: "abl-container-list abl-background" }), /* @__PURE__ */ createElement("div", { id: "abl-filter-list", class: "abl-container-list" })), /* @__PURE__ */ createElement("div", { class: "abl-container abl-row" }, /* @__PURE__ */ createElement("p", null, "Sort by"), createBasicDropdown(dropdownGroups.SortTypes, "abl-sortType"), createBasicDropdown(dropdownGroups.SortDirection, "abl-sortDirection"))), /* @__PURE__ */ createElement("div", { id: "abl-status-container" }, /* @__PURE__ */ createElement("p", { id: "abl-status" }, "Status")), /* @__PURE__ */ createElement("div", { class: "abl-container abl-row abl-centered", id: "abl-pages-container" }, /* @__PURE__ */ createElement("button", { class: "abl-background abl-button", id: "abl-previousPage" }, "<"), /* @__PURE__ */ createElement("h2", { class: "abl-page-display", id: "abl-pageDisplay" }, "0"), /* @__PURE__ */ createElement("button", { class: "abl-background abl-button", id: "abl-nextPage" }, ">")), /* @__PURE__ */ createElement("ul", { class: "abl-container abl-column", id: "abl-list" }), /* @__PURE__ */ createElement("div", { class: "abl-centered", id: "abl-bottom-container" }, /* @__PURE__ */ createElement("button", { class: "abl-background abl-button", id: "abl-toTop" }, "Back to Top")));
+          return /* @__PURE__ */ createElement("div", { class: "abl-container abl-column" }, /* @__PURE__ */ createElement("div", { class: "abl-container abl-row", id: "abl-header-container" }, /* @__PURE__ */ createElement("h2", null, "Badges"), /* @__PURE__ */ createElement("button", { class: "abl-background abl-button", id: "abl-load" }, "Load"), /* @__PURE__ */ createElement("div", { class: "abl-saved-wrap" }, /* @__PURE__ */ createElement("button", { class: "abl-background abl-button", id: "abl-savedToggle", "aria-haspopup": "true", "aria-expanded": "false" }, /* @__PURE__ */ createElement("span", { class: "abl-saved-star", id: "abl-savedStar" }, "\u2606"), " Saved Games"), /* @__PURE__ */ createElement("div", { class: "abl-background abl-saved-panel", id: "abl-savedPanel", hidden: true }, /* @__PURE__ */ createElement("p", { class: "abl-saved-section-title" }, "This game"), /* @__PURE__ */ createElement("div", { class: "abl-saved-current" }, /* @__PURE__ */ createElement("p", { class: "abl-saved-current-name", id: "abl-savedCurrentName" }), /* @__PURE__ */ createElement("p", { class: "abl-saved-meta", id: "abl-savedCurrentMeta" })), /* @__PURE__ */ createElement("div", { class: "abl-saved-actions", id: "abl-savedActions" }), /* @__PURE__ */ createElement("div", { class: "abl-saved-divider" }), /* @__PURE__ */ createElement("p", { class: "abl-saved-section-title", id: "abl-savedListTitle" }, "Saved games"), /* @__PURE__ */ createElement("ul", { class: "abl-saved-list", id: "abl-savedList" }))), /* @__PURE__ */ createElement("p", { class: "abl-saved-hint", id: "abl-savedHint" })), /* @__PURE__ */ createElement("div", { class: "abl-container abl-row", id: "abl-ownership-container" }, /* @__PURE__ */ createElement("img", { src: "", alt: "", class: "abl-icon abl-icon--lg", id: "abl-viewing-img" }), /* @__PURE__ */ createElement("p", { id: "abl-viewing-user" }, "Username"), /* @__PURE__ */ createElement("div", null, /* @__PURE__ */ createElement("button", { id: "abl-ownerEditBtn", class: "abl-ghost-button abl-centered abl-icon--md" }, SVG(editSVG, "var(--color-content-default)", 24)), /* @__PURE__ */ createElement("div", { class: "abl-background abl-container-list abl-big-dropdown abl-gap-sm", id: "abl-ownerEditDropdown", style: "display: none;" }, /* @__PURE__ */ createElement("input", { type: "text", id: "abl-ownerEditDropdownSearch", class: "abl-background abl-pad-sm", placeholder: "Add username" }), /* @__PURE__ */ createElement("div", { id: "abl-ownerEditDropdownList", class: "abl-container abl-column abl-gap-sm" }))), /* @__PURE__ */ createElement("button", { id: "abl-ownerRefreshBtn", class: "abl-ghost-button abl-centered abl-icon--md" }, SVG(refreshSVG, "var(--color-content-default)", 24)), /* @__PURE__ */ createElement("p", { id: "abl-ownedRemaining" }), /* @__PURE__ */ createElement("p", { class: "", id: "abl-cloudKeyWarning", style: "display: none;" }, "\u26A0 Add a Cloud Key in ABL Settings to fetch more badges at once.")), /* @__PURE__ */ createElement("div", { class: "abl-container abl-column", id: "abl-filters-container" }, /* @__PURE__ */ createElement("h4", { id: "abl-filters-title" }, "Filters"), /* @__PURE__ */ createElement("div", { class: "abl-container" }, /* @__PURE__ */ createElement("div", { id: "abl-filter-options-list", class: "abl-container-list abl-background" }), /* @__PURE__ */ createElement("div", { id: "abl-filter-list", class: "abl-container-list" })), /* @__PURE__ */ createElement("div", { class: "abl-container abl-row" }, /* @__PURE__ */ createElement("p", null, "Sort by"), createBasicDropdown(dropdownGroups.SortTypes, "abl-sortType"), createBasicDropdown(dropdownGroups.SortDirection, "abl-sortDirection"))), /* @__PURE__ */ createElement("div", { id: "abl-status-container" }, /* @__PURE__ */ createElement("p", { id: "abl-status" }, "Status")), /* @__PURE__ */ createElement("div", { class: "abl-container abl-row abl-centered", id: "abl-pages-container" }, /* @__PURE__ */ createElement("button", { class: "abl-background abl-button", id: "abl-previousPage" }, "<"), /* @__PURE__ */ createElement("h2", { class: "abl-page-display", id: "abl-pageDisplay" }, "0"), /* @__PURE__ */ createElement("button", { class: "abl-background abl-button", id: "abl-nextPage" }, ">")), /* @__PURE__ */ createElement("ul", { class: "abl-container abl-column", id: "abl-list" }), /* @__PURE__ */ createElement("div", { class: "abl-centered", id: "abl-bottom-container" }, /* @__PURE__ */ createElement("button", { class: "abl-background abl-button", id: "abl-toTop" }, "Back to Top")));
         }
         async function insertBadgeListUI(mainContainer) {
           const badgeContainer = await waitForSelector(".game-badges-list");
@@ -1058,12 +1321,23 @@
         class BadgeIconManager {
           constructor() {
             this.iconImageURLs = /* @__PURE__ */ new Map();
+            this.requested = /* @__PURE__ */ new Set();
           }
           getIconURL(iconId) {
             return this.iconImageURLs.get(iconId);
           }
+          // Skips icons already fetched or in flight: a list restored from a save
+          // fetches icons page by page as they're shown, which can overlap with the
+          // batches a normal load requests.
           async processBatch(iconIds) {
-            const response = await fetchAssetThumbnails(iconIds);
+            const toFetch = iconIds.filter((id) => id != null && !this.requested.has(id));
+            if (toFetch.length == 0) {
+              return [];
+            }
+            for (const id of toFetch) {
+              this.requested.add(id);
+            }
+            const response = await fetchAssetThumbnails(toFetch);
             for (const thumbnail of response) {
               this.iconImageURLs.set(thumbnail.targetId, thumbnail.imageUrl);
             }
@@ -1103,25 +1377,35 @@
             }, 1e3);
             let result = /* @__PURE__ */ new Map();
             for (const badge of response.data) {
-              this.list.push(badge.id);
-              const info = {
-                enabled: badge.enabled,
-                name: badge.name,
-                desc: badge.description || "",
-                created: badge.created,
-                updated: badge.updated,
-                value: this.valueChecker.nextBadge(badge.id, badge.created),
-                count: badge.statistics.awardedCount,
-                countToday: badge.statistics.pastDayAwardedCount,
-                rate: badge.statistics.winRatePercentage,
-                iconId: badge.iconImageId
-              };
-              this.badgeInfo.set(badge.id, info);
-              result.set(badge.id, info);
+              result.set(badge.id, this.addBadge(badge.id, infoFromApi(badge)));
             }
             this.currentCursor = response.nextPageCursor;
             return result;
           }
+          // Badges must be added oldest first: the value checker counts how many
+          // badges share a creation day, so order changes the result.
+          addBadge(id, info) {
+            info.value = this.valueChecker.nextBadge(id, info.created);
+            this.list.push(id);
+            this.badgeInfo.set(id, info);
+            return info;
+          }
+          markFinished() {
+            this.currentCursor = null;
+          }
+        }
+        function infoFromApi(badge) {
+          return {
+            enabled: badge.enabled,
+            name: badge.name,
+            desc: badge.description || "",
+            created: badge.created,
+            updated: badge.updated,
+            count: badge.statistics.awardedCount,
+            countToday: badge.statistics.pastDayAwardedCount,
+            rate: badge.statistics.winRatePercentage,
+            iconId: badge.iconImageId
+          };
         }
         function sortBadgeListArray(array, badgeList2, keyName, sortDirection2) {
           array.sort(function(a, b) {
@@ -1680,6 +1964,15 @@
           }
           ;
           badgeListPage.replaceChildren(fragment);
+          const missingIcons = [];
+          for (const iconId of renderedBadgeImages.keys()) {
+            if (!badgeIconManager.getIconURL(iconId)) {
+              missingIcons.push(iconId);
+            }
+          }
+          if (missingIcons.length > 0) {
+            badgeIconManager.processBatch(missingIcons).then(updateVisibleIcons);
+          }
           refreshListStatus();
         }
         function updateVisibleOwnership() {
@@ -1765,13 +2058,280 @@
           }
         }
         ownershipCheckerLoop();
-        async function load() {
+        const savedToggle = ABLContainer.querySelector("#abl-savedToggle");
+        const savedStar = ABLContainer.querySelector("#abl-savedStar");
+        const savedPanel = ABLContainer.querySelector("#abl-savedPanel");
+        const savedCurrentName = ABLContainer.querySelector("#abl-savedCurrentName");
+        const savedCurrentMeta = ABLContainer.querySelector("#abl-savedCurrentMeta");
+        const savedActions = ABLContainer.querySelector("#abl-savedActions");
+        const savedListTitle = ABLContainer.querySelector("#abl-savedListTitle");
+        const savedList = ABLContainer.querySelector("#abl-savedList");
+        const savedHint = ABLContainer.querySelector("#abl-savedHint");
+        let savedIndex = await getSavedIndex();
+        let saveState = "idle";
+        let saveError = "";
+        let pendingSave = false;
+        let recountProgress = 0;
+        const MAX_NEW_BADGE_PAGES = 50;
+        function currentSave() {
+          return savedIndex[universeId];
+        }
+        function setSavedHint(text) {
+          savedHint.textContent = text;
+        }
+        async function persistBadges(list) {
+          saveState = "saving";
+          renderSavedPanel();
+          try {
+            const rows = list.list.map((id) => toRow(id, list.getBadgeInfo(id)));
+            await saveGame(universeId, { name: gameName, placeId: placeDetails.placeId || placeId }, rows);
+            savedIndex = await getSavedIndex();
+            saveError = "";
+          } catch (error) {
+            saveError = `Couldn't save: ${error.message}`;
+          }
+          saveState = "idle";
+          renderSavedPanel();
+        }
+        function restoreFromSave(rows) {
+          for (const row of rows) {
+            const { id, info } = fromRow(row);
+            if (!badgeList.getBadgeInfo(id)) {
+              badgeList.addBadge(id, info);
+            }
+          }
+          badgeList.markFinished();
+        }
+        async function fetchJsonWithRetries(url, attempts) {
+          for (let attempt = 1; attempt <= attempts; attempt++) {
+            try {
+              const response = await fetch(url);
+              if (response.ok) {
+                const json = await response.json();
+                if (!json.errors) {
+                  return json;
+                }
+              }
+            } catch (error) {
+            }
+            await wait(1500 * attempt);
+          }
+          return null;
+        }
+        async function fetchBadgesNewerThan(knownIds) {
+          const found = [];
+          let cursor = "";
+          for (let page = 0; page < MAX_NEW_BADGE_PAGES; page++) {
+            const url = `https://badges.roblox.com/v1/universes/${universeId}/badges?limit=100&sortBy=DateCreated&sortOrder=Desc&cursor=${cursor}`;
+            const json = await fetchJsonWithRetries(url, 3);
+            if (!json || !Array.isArray(json.data)) {
+              return null;
+            }
+            for (const badge of json.data) {
+              if (knownIds.has(badge.id)) {
+                return found;
+              }
+              found.push(badge);
+            }
+            if (!json.nextPageCursor) {
+              return found;
+            }
+            cursor = json.nextPageCursor;
+          }
+          return null;
+        }
+        function onBadgesAdded() {
+          badgeList.refilterBadgeList();
+          refreshOwnershipStatus();
+          awakenOwnershipChecker.emit();
+        }
+        async function checkForNewBadges() {
+          saveState = "checking";
+          renderSavedPanel();
+          const newest = await fetchBadgesNewerThan(new Set(badgeList.list));
+          saveState = "idle";
+          if (newest == null) {
+            setSavedHint("Loaded from save \xB7 couldn't check for new badges, try Recount");
+            renderSavedPanel();
+            return;
+          }
+          if (newest.length == 0) {
+            setSavedHint("Loaded from save \xB7 up to date");
+            renderSavedPanel();
+            return;
+          }
+          newest.reverse();
+          for (const badge of newest) {
+            badgeList.addBadge(badge.id, infoFromApi(badge));
+          }
+          onBadgesAdded();
+          setSavedHint(`Loaded from save \xB7 ${formatCount(newest.length)} new badge${newest.length == 1 ? "" : "s"} added`);
+          await persistBadges(badgeList);
+        }
+        function mergeFreshList(fresh) {
+          let added = 0;
+          for (const id of fresh.list) {
+            const info = fresh.getBadgeInfo(id);
+            const existing = badgeList.getBadgeInfo(id);
+            if (existing) {
+              Object.assign(existing, info);
+            } else {
+              badgeList.list.push(id);
+              badgeList.badgeInfo.set(id, info);
+              added++;
+            }
+          }
+          return added;
+        }
+        async function recountSavedGame() {
+          if (saveState != "idle") {
+            return;
+          }
+          if (!loaded) {
+            await load({ useSave: false, saveAfter: true });
+            return;
+          }
+          if (!badgeList.isFinished()) {
+            pendingSave = true;
+            renderSavedPanel();
+            return;
+          }
+          saveState = "recounting";
+          recountProgress = 0;
+          renderSavedPanel();
+          const fresh = new BadgeList(universeId);
+          while (!fresh.isFinished()) {
+            await fresh.next();
+            recountProgress = fresh.list.length;
+            renderSavedPanel();
+          }
+          const added = mergeFreshList(fresh);
+          onBadgesAdded();
+          setSavedHint(added > 0 ? `Recounted \xB7 ${formatCount(added)} new badge${added == 1 ? "" : "s"}` : "Recounted \xB7 stats updated");
+          saveState = "idle";
+          await persistBadges(fresh);
+        }
+        async function saveCurrentGame() {
+          if (loaded && badgeList.isFinished()) {
+            await persistBadges(badgeList);
+            setSavedHint("Saved");
+            return;
+          }
+          pendingSave = true;
+          renderSavedPanel();
+          if (!loaded) {
+            await load();
+          }
+        }
+        async function removeSavedGame(id) {
+          if (String(id) == String(universeId)) {
+            pendingSave = false;
+            setSavedHint("");
+          }
+          await removeGame(id);
+          savedIndex = await getSavedIndex();
+          renderSavedPanel();
+        }
+        function createPanelButton(text, onClick, disabled, title) {
+          const button = /* @__PURE__ */ createElement("button", { class: "abl-background abl-button abl-button-small", type: "button" }, text);
+          button.disabled = Boolean(disabled);
+          if (title) {
+            button.title = title;
+          }
+          button.onclick = onClick;
+          return button;
+        }
+        function currentSaveDescription(save) {
+          if (saveError) return saveError;
+          if (saveState == "recounting") return `Recounting: ${formatCount(recountProgress)} badges so far`;
+          if (saveState == "checking") return "Checking for new badges";
+          if (saveState == "saving") return "Saving";
+          if (pendingSave) return `Will be saved once the count finishes (${formatCount(badgeList.list.length)} so far)`;
+          if (save) return `${formatCount(save.count)} badges, saved ${formatAge(save.savedAt)}`;
+          return "Not saved. Saving it makes this game load instantly next time.";
+        }
+        function renderSavedList() {
+          const entries = sortedEntries(savedIndex);
+          savedListTitle.textContent = entries.length > 0 ? `Saved games (${entries.length})` : "Saved games";
+          if (entries.length == 0) {
+            savedList.replaceChildren(/* @__PURE__ */ createElement("li", { class: "abl-saved-meta" }, "No saved games yet."));
+            return;
+          }
+          savedList.replaceChildren(...entries.map(function([id, entry]) {
+            const isCurrent = String(id) == String(universeId);
+            const removeButton = /* @__PURE__ */ createElement("button", { class: "abl-ghost-button abl-centered abl-saved-remove", type: "button", title: "Remove from saved games" }, SVG(crossSVG, "var(--color-content-default)", 14));
+            removeButton.disabled = isCurrent && saveState != "idle";
+            removeButton.onclick = function() {
+              removeSavedGame(id);
+            };
+            return /* @__PURE__ */ createElement("li", { class: `abl-saved-item ${isCurrent ? "is-current" : ""}` }, /* @__PURE__ */ createElement("div", { class: "abl-saved-item-text" }, /* @__PURE__ */ createElement("a", { class: "abl-saved-item-name", href: `https://www.roblox.com/games/${entry.placeId}`, title: entry.name }, entry.name), /* @__PURE__ */ createElement("span", { class: "abl-saved-item-meta" }, `${formatCount(entry.count)} badges \xB7 ${formatAge(entry.savedAt)}`)), removeButton);
+          }));
+        }
+        function renderSavedPanel() {
+          const save = currentSave();
+          const busy = saveState != "idle";
+          savedStar.textContent = save ? "\u2605" : "\u2606";
+          savedStar.classList.toggle("is-saved", Boolean(save));
+          if (!loaded) {
+            loadButton.textContent = save ? "Load from save" : "Load";
+          }
+          savedCurrentName.textContent = gameName;
+          savedCurrentName.title = gameName;
+          savedCurrentMeta.textContent = currentSaveDescription(save);
+          if (save) {
+            savedActions.replaceChildren(
+              createPanelButton("Recount", recountSavedGame, busy || pendingSave, "Fetch every badge again to refresh the stats"),
+              createPanelButton("Remove", function() {
+                removeSavedGame(universeId);
+              }, busy)
+            );
+          } else {
+            savedActions.replaceChildren(
+              createPanelButton(pendingSave ? "Saving when done" : "\u2605 Save this game", saveCurrentGame, busy || pendingSave)
+            );
+          }
+          renderSavedList();
+        }
+        function setSavedPanelOpen(open) {
+          savedPanel.hidden = !open;
+          savedToggle.setAttribute("aria-expanded", open ? "true" : "false");
+          if (open) {
+            renderSavedPanel();
+          }
+        }
+        savedToggle.onclick = function() {
+          setSavedPanelOpen(savedPanel.hidden);
+        };
+        document.addEventListener("keydown", function(event) {
+          if (event.key == "Escape" && !savedPanel.hidden) {
+            setSavedPanelOpen(false);
+          }
+        });
+        chrome.storage.onChanged.addListener(function(changes, area) {
+          if (area == "local" && changes[INDEX_KEY]) {
+            savedIndex = changes[INDEX_KEY].newValue || {};
+            renderSavedPanel();
+          }
+        });
+        async function load(options = {}) {
           if (loaded) {
             return;
           }
           loaded = true;
           loadButton.remove();
           refreshOwnershipStatus();
+          const rows = options.useSave !== false && currentSave() ? await getSavedBadges(universeId) : null;
+          if (rows && rows.length > 0) {
+            restoreFromSave(rows);
+            onBadgesAdded();
+            renderSavedPanel();
+            await checkForNewBadges();
+            return;
+          }
+          if (options.saveAfter) {
+            pendingSave = true;
+          }
+          renderSavedPanel();
           while (!badgeList.isFinished()) {
             const response = await badgeList.next();
             refreshOwnershipStatus();
@@ -1781,8 +2341,16 @@
             }
             badgeIconManager.processBatch(iconIds).then(updateVisibleIcons);
             awakenOwnershipChecker.emit();
+            if (pendingSave) {
+              renderSavedPanel();
+            }
           }
           awakenOwnershipChecker.emit();
+          if (pendingSave || currentSave()) {
+            pendingSave = false;
+            await persistBadges(badgeList);
+            setSavedHint("Counted and saved");
+          }
         }
         OwnershipChecker.onProcessed.subscribe(function() {
           refreshOwnershipStatus();
@@ -1802,7 +2370,10 @@
           refreshSiteTheme();
         }
         requestAnimationFrame(onUpdate);
-        loadButton.onclick = load;
+        loadButton.onclick = function() {
+          load();
+        };
+        renderSavedPanel();
         nextPageBtn.onclick = function() {
           switchPage(currentPage + 1);
         };
@@ -1840,6 +2411,10 @@
         document.onclick = function(event) {
           if (event.target != ownerEditDropdown && !ownerEditDropdown.contains(event.target) && event.target != ownerEditBtn && !ownerEditBtn.contains(event.target)) {
             closeOwnerEditDropdown();
+          }
+          const path = event.composedPath();
+          if (!savedPanel.hidden && !path.includes(savedPanel) && !path.includes(savedToggle)) {
+            setSavedPanelOpen(false);
           }
         };
         function onSortChanged() {

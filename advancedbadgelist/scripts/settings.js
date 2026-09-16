@@ -118,10 +118,78 @@
     }
   });
 
+  // src/savedGames.js
+  function badgesKey(universeId) {
+    return BADGES_PREFIX + universeId;
+  }
+  function storageGet(key) {
+    return new Promise((resolve) => {
+      chrome.storage.local.get(key, (res) => resolve(res ? res[key] : void 0));
+    });
+  }
+  function storageSet(items) {
+    return new Promise((resolve, reject) => {
+      chrome.storage.local.set(items, () => {
+        const error = chrome.runtime.lastError;
+        error ? reject(new Error(error.message)) : resolve();
+      });
+    });
+  }
+  function storageRemove(keys) {
+    return new Promise((resolve) => {
+      chrome.storage.local.remove(keys, resolve);
+    });
+  }
+  async function getSavedIndex() {
+    const index = await storageGet(INDEX_KEY);
+    return index && typeof index === "object" ? index : {};
+  }
+  async function removeGame(universeId) {
+    const index = await getSavedIndex();
+    delete index[universeId];
+    await storageSet({ [INDEX_KEY]: index });
+    await storageRemove(badgesKey(universeId));
+  }
+  async function removeAllGames() {
+    const index = await getSavedIndex();
+    const keys = Object.keys(index).map(badgesKey);
+    await storageSet({ [INDEX_KEY]: {} });
+    await storageRemove(keys);
+  }
+  function sortedEntries(index) {
+    return Object.entries(index).sort((a, b) => (b[1].savedAt || 0) - (a[1].savedAt || 0));
+  }
+  function formatCount(n) {
+    return Number(n || 0).toLocaleString("en-US");
+  }
+  function formatAge(timestamp, now = Date.now()) {
+    const seconds = Math.max(0, Math.round((now - timestamp) / 1e3));
+    if (seconds < 60) return "just now";
+    const minutes = Math.round(seconds / 60);
+    if (minutes < 60) return `${minutes} min ago`;
+    const hours = Math.round(minutes / 60);
+    if (hours < 24) return `${hours} h ago`;
+    const days = Math.round(hours / 24);
+    return days === 1 ? "1 day ago" : `${days} days ago`;
+  }
+  function formatBytes(bytes) {
+    if (!bytes) return "0 KB";
+    if (bytes < 1024 * 1024) return `${Math.max(1, Math.round(bytes / 1024))} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  }
+  var INDEX_KEY, BADGES_PREFIX;
+  var init_savedGames = __esm({
+    "src/savedGames.js"() {
+      INDEX_KEY = "ablSavedGames";
+      BADGES_PREFIX = "ablSavedBadges:";
+    }
+  });
+
   // src/settings.jsx
   var require_settings = __commonJS({
     "src/settings.jsx"() {
       init_themeColors();
+      init_savedGames();
       (async function() {
         function createElement(tag, props, ...children) {
           const el = document.createElement(tag);
@@ -180,7 +248,9 @@
     #abl-export-keys,
     #abl-import-keys,
     .abl-add-key,
-    .abl-remove-key {
+    .abl-remove-key,
+    #abl-saved-remove-all,
+    .abl-saved-row-remove {
         border-radius: 0 !important;
         background: linear-gradient(to bottom, rgba(255, 255, 255, 0.5) 0%, rgba(255, 255, 255, 0.1) 14%, rgba(255, 255, 255, 0) 50%), linear-gradient(to bottom, #3fc6ff 0%, #0d6fa8 55%, #073757 100%) !important;
         border: 1px solid rgba(210, 245, 255, 0.7) !important;
@@ -192,8 +262,49 @@
     #abl-export-keys:hover,
     #abl-import-keys:hover,
     .abl-add-key:hover,
-    .abl-remove-key:hover {
+    .abl-remove-key:hover,
+    #abl-saved-remove-all:hover,
+    .abl-saved-row-remove:hover {
         filter: brightness(1.12);
+    }
+
+    #abl-saved-remove-all[disabled] {
+        opacity: 0.5;
+        filter: grayscale(0.6);
+    }
+
+    .abl-saved-row {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 10px 0;
+        border-bottom: 1px solid rgba(128, 128, 128, 0.25);
+    }
+
+    .abl-saved-row-text {
+        flex: 1;
+        min-width: 0;
+    }
+
+    .abl-saved-row-name {
+        display: block;
+        color: inherit !important;
+        font-size: 16px;
+        font-weight: bold;
+        text-decoration: none !important;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .abl-saved-row-name:hover {
+        text-decoration: underline !important;
+    }
+
+    .abl-saved-row-meta {
+        margin: 0;
+        font-size: 13px;
+        opacity: 0.85;
     }
 
     .abl-theme-btn {
@@ -264,6 +375,10 @@
           "abl-theme": {
             href: "?abl=theme",
             render: () => renderAblTab("abl-theme")
+          },
+          "abl-saved-games": {
+            href: "?abl=saved-games",
+            render: () => renderAblTab("abl-saved-games")
           },
           "abl-back": {
             href: "https://www.roblox.com/my/account#!/info",
@@ -461,6 +576,30 @@
             }
           });
         }
+        async function renderSavedGamesList() {
+          const list = document.getElementById("abl-saved-games-list");
+          const summary = document.getElementById("abl-saved-summary");
+          const removeAll = document.getElementById("abl-saved-remove-all");
+          if (!list) return;
+          const entries = sortedEntries(await getSavedIndex());
+          if (!list.isConnected) return;
+          const totalBytes = entries.reduce((sum, [, entry]) => sum + (entry.bytes || 0), 0);
+          summary.textContent = entries.length == 0 ? "No saved games yet." : `${entries.length} saved game${entries.length == 1 ? "" : "s"}, ${formatBytes(totalBytes)} in total`;
+          removeAll.disabled = entries.length == 0;
+          list.replaceChildren(...entries.map(([universeId, entry]) => {
+            const row = /* @__PURE__ */ createElement("div", { className: "abl-saved-row" }, /* @__PURE__ */ createElement("div", { className: "abl-saved-row-text" }, /* @__PURE__ */ createElement("a", { className: "abl-saved-row-name", href: `https://www.roblox.com/games/${entry.placeId}`, title: entry.name }, entry.name), /* @__PURE__ */ createElement("p", { className: "abl-saved-row-meta" }, `${formatCount(entry.count)} badges \xB7 saved ${formatAge(entry.savedAt)} \xB7 ${formatBytes(entry.bytes)}`)), /* @__PURE__ */ createElement("button", { className: "btn-control-sm abl-saved-row-remove", type: "button" }, "Remove"));
+            row.querySelector(".abl-saved-row-remove").addEventListener("click", async () => {
+              await removeGame(universeId);
+              renderSavedGamesList();
+            });
+            return row;
+          }));
+        }
+        chrome.storage.onChanged.addListener((changes, area) => {
+          if (area == "local" && changes[INDEX_KEY]) {
+            renderSavedGamesList();
+          }
+        });
         async function renderAblTab(id) {
           if (id === "abl-cloud-keys") {
             tabContent.replaceChildren(
@@ -475,6 +614,18 @@
             const cloudKeyInstructions = /* @__PURE__ */ createElement("div", null, /* @__PURE__ */ createElement("h2", null, "How to get a cloud key?"), /* @__PURE__ */ createElement("div", null, /* @__PURE__ */ createElement("p", null, "1. Head to ", /* @__PURE__ */ createElement("a", { href: "https://create.roblox.com/dashboard/credentials", style: { color: "revert", textDecoration: "revert" } }, "Roblox API Keys")), /* @__PURE__ */ createElement("p", null, '2. Click on "Create API Key"'), /* @__PURE__ */ createElement("p", null, "3. Give it any name and description."), /* @__PURE__ */ createElement("p", null, '4. Select "inventory" under the "Select API System" textbox.'), /* @__PURE__ */ createElement("p", null, '5. Select "read" under the "Select Operations to Add" textbox.'), /* @__PURE__ */ createElement("p", null, "6. Generate the key, make sure to save it somewhere safe."), /* @__PURE__ */ createElement("p", null, "7. Paste the key into one of the text boxes here.")), /* @__PURE__ */ createElement("br", null));
             tabContent.appendChild(cloudKeyInstructions);
             tabContent.appendChild(cloudkeySettingsTab);
+          }
+          if (id === "abl-saved-games") {
+            tabContent.replaceChildren(
+              /* @__PURE__ */ createElement("div", { className: "section" }, /* @__PURE__ */ createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" } }, /* @__PURE__ */ createElement("h3", { style: { margin: "0" } }, "Saved Games"), /* @__PURE__ */ createElement("button", { className: "btn-control-sm", type: "button", id: "abl-saved-remove-all" }, "Remove all")), /* @__PURE__ */ createElement("p", { className: "font-caption-body", style: { opacity: "0.85", marginBottom: "12px" } }, "A saved game keeps its badge list on this computer, so it loads instantly instead of being counted from zero. Only new badges are fetched on the next visit. Save a game from the Saved Games menu on its page."), /* @__PURE__ */ createElement("p", { className: "font-caption-header", id: "abl-saved-summary", style: { marginBottom: "4px" } }), /* @__PURE__ */ createElement("div", { id: "abl-saved-games-list" }))
+            );
+            document.getElementById("abl-saved-remove-all").addEventListener("click", async () => {
+              if (confirm("Remove every saved game? Their badges will be counted from zero next time.")) {
+                await removeAllGames();
+                renderSavedGamesList();
+              }
+            });
+            renderSavedGamesList();
           }
           if (id === "abl-theme") {
             let siteTheme = function() {
@@ -538,8 +689,9 @@
           const generalSettings = makeOption("abl-general-settings", "General Settings", ABL_TABS["abl-general-settings"].href);
           const cloudKeys = makeOption("abl-cloud-keys", "Cloud Keys", ABL_TABS["abl-cloud-keys"].href);
           const theme = makeOption("abl-theme", "Theme", ABL_TABS["abl-theme"].href);
+          const savedGames = makeOption("abl-saved-games", "Saved Games", ABL_TABS["abl-saved-games"].href);
           const returnBtn = makeOption("abl-back", "Return", ABL_TABS["abl-back"].href);
-          menu.append(generalSettings, cloudKeys, theme, returnBtn);
+          menu.append(generalSettings, cloudKeys, theme, savedGames, returnBtn);
           const key = new URLSearchParams(location.search).get("abl") || "general-settings";
           const tab = menu.querySelector(`#abl-${key}`) || generalSettings;
           setActive(tab);

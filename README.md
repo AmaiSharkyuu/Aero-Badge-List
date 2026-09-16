@@ -36,6 +36,8 @@ Aero Badge List is a fork of [Advanced Badge List](https://github.com/meowbee-gi
 - Frutiger Aero visual theme: glossy blue glass panels and buttons, zero `border-radius` anywhere.
 - Badge rarity borders: Valuable = gold, Legacy = blue, NVL = red, each with a subtle matching glow.
 - Built-in theme picker (ABL Settings → Theme): Aero (default), Monochrome, or a Custom accent color of your own.
+- Saved Games: keep a game's badge list so it loads instantly instead of being counted from zero (see below).
+- The date and time you earned a badge is shown right under its description.
 - Cleaned up dead/commented-out code from the base project.
 - Host permissions narrowed to only what the extension actually needs (least privilege).
 - Native Firefox manifest (`manifest_firefox.json`) with matching permissions.
@@ -69,6 +71,18 @@ Aero Badge List is a fork of [Advanced Badge List](https://github.com/meowbee-gi
 - **AmaiSharkyuu**
   - [Roblox Profile](https://www.roblox.com/users/1957141708/profile)
   - [Discord](https://discord.com/users/816654196047740979)
+
+## ⭐ Saved Games ⭐
+
+Big badge games can take a long time to count, since every badge has to be fetched page by page. Saving a game keeps its badge list on your computer:
+
+1. On a game's page, click **☆ Saved Games** next to the Load button.
+2. Click **Save this game**. The badges are counted once and saved.
+3. Next time, the button says **Load from save**: the list appears instantly, and only the newest badges are fetched to add any that are new. A 13,000-badge game goes from about 130 requests to one.
+
+From the same menu you can **Recount** a saved game (fetches everything again to refresh the stats and drop deleted badges), **Remove** it, or open and remove any of your other saved games. All saved games are also listed in **ABL Settings → Saved Games**, with the space each one uses.
+
+Only the badge list is saved, never who owns what: ownership is always checked live for whoever you're viewing. A large game takes a couple of megabytes, which is why the extension asks for the `unlimitedStorage` permission.
 
 ## 🔑 Cloud Keys 🔑
 
